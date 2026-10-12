@@ -180,7 +180,7 @@
     <main class="content-card">
         <span class="badge">Privacy &amp; Data Security</span>
         <h1>Privacy Policy</h1>
-        <div class="meta-date">Last updated: October 9, 2026 &bull; Compliant with GDPR, CCPA, and Paddle Merchant guidelines</div>
+        <div class="meta-date">Last updated: October 9, 2026 &bull; Compliant with GDPR and CCPA guidelines</div>
 
         <div class="notice-box">
             <strong>Key Commitment:</strong> We respect your privacy. Your uploaded resumes are only parsed to generate match analytics for your review. We never sell, auction, or share your resume text or personal details with advertisers or data brokers.
@@ -190,8 +190,8 @@
         <p>When using Resume Rater, we collect minimal data essential to providing our algorithmic evaluation services:</p>
         <ul>
             <li><strong>Document Data:</strong> Content extracted from resumes (PDF/DOCX) and job descriptions you submit for analysis.</li>
-            <li><strong>Account &amp; Usage Data:</strong> Monthly scan usage counts, plan tier (Free vs. Pro Monthly / Pro Annual), and timestamp of evaluations.</li>
-            <li><strong>Payment &amp; Billing Data:</strong> All payment details (credit cards, PayPal, bank accounts) are processed directly by our Merchant of Record, <strong>Paddle</strong>. Resume Rater does not store or process raw credit card numbers. Paddle provides us only with customer reference IDs and subscription status flags.</li>
+            <li><strong>Account &amp; History Data:</strong> Optional account email, name, and timestamp of evaluations stored securely via Supabase Auth and PostgreSQL.</li>
+            <li><strong>No Payment Data:</strong> Resume Rater is 100% free. We never request, process, or store credit card, billing, or financial details.</li>
         </ul>
 
         <h2>2. How We Use Your Information</h2>
@@ -199,17 +199,17 @@
         <ul>
             <li>Parse and categorize CV sections (Summary, Experience, Skills, Education, Projects).</li>
             <li>Compute TF-IDF cosine similarity scores and keyword coverage radars against specified job requirements.</li>
-            <li>Enforce monthly scan limits for free users and provision unlimited access for active Pro subscribers.</li>
+            <li>Enable history tracking of candidate scores and radar charts across sessions.</li>
             <li>Respond to your technical questions and customer support inquiries.</li>
         </ul>
 
         <h2>3. Temporary File Processing &amp; Data Retention</h2>
-        <p>Uploaded PDF documents are temporarily stored in isolated directories during the parsing phase and automatically cleaned up upon evaluation completion. Derived mathematical vectors and extracted text snippets are stored in private user session databases to allow viewing candidate dossiers.</p>
+        <p>Uploaded PDF documents are temporarily processed in memory during the parsing phase and automatically cleaned up upon evaluation completion. Evaluation metrics and extracted text snippets are saved to your secure Supabase PostgreSQL instance.</p>
 
         <h2>4. Third-Party Service Providers</h2>
         <p>We work with trusted industry providers under strict data protection terms:</p>
         <ul>
-            <li><strong>Paddle.com:</strong> Merchant of Record for global checkout, billing, sales tax compliance, and payment receipts.</li>
+            <li><strong>Supabase:</strong> Cloud PostgreSQL database and single sign-on authentication service (Google, GitHub, Microsoft).</li>
             <li><strong>Infrastructure Hosting:</strong> Secured serverless environments with encrypted transit (HTTPS/TLS 1.3).</li>
         </ul>
 

@@ -1,417 +1,88 @@
-import { Paddle, Environment } from '@paddle/paddle-node-sdk';
 import { db } from '../db/index.js';
 import { isAdminRequest, getAdminUser, getAdminSubscription } from '../middleware/admin.js';
 
-const paddleApiKey = process.env.PADDLE_API_KEY;
-const paddleWebhookSecretKey = process.env.PADDLE_WEBHOOK_SECRET_KEY;
-const paddleEnvString = (process.env.PADDLE_ENVIRONMENT || 'sandbox').toLowerCase();
-const paddleEnvironment = paddleEnvString === 'production' ? Environment.production : Environment.sandbox;
-
-// Initialize Paddle Node SDK client if API key is provided
-const paddleClient = paddleApiKey ? new Paddle(paddleApiKey, { environment: paddleEnvironment }) : null;
-
+/**
+ * Resume Rater - 100% Free & Open Platform
+ * All subscription requirements and paywalls removed
+ */
 export const PLANS = {
   FREE: {
-    id: 'free_starter',
-    name: 'Free Starter',
+    id: 'free_unlimited',
+    name: '100% Free Forever',
     price: 0,
-    interval: 'month',
-    features: [
-      '3 complimentary ATS scans / month',
-      'Basic TF-IDF similarity score',
-      'Standard CV section parser (Education, Experience, Skills, Projects)'
-    ]
-  },
-  MONTHLY: {
-    id: 'pro_monthly',
-    name: 'Pro Monthly',
-    price: 5,
-    interval: 'month',
-    paddlePriceId: process.env.PADDLE_PRICE_ID_PRO_MONTHLY || 'pri_pro_monthly_5usd',
-    // Backward-compatible alias
-    stripePriceId: process.env.PADDLE_PRICE_ID_PRO_MONTHLY || 'pri_pro_monthly_5usd',
+    interval: 'forever',
     features: [
       'Unlimited PDF & DOCX ATS scans',
+      'Full TF-IDF numerical similarity scoring',
       'Multi-dimensional Recharts competency radar',
       'Real-time keyword frequency gap analyzer',
-      'Export parsed sections & match dossiers',
-      'Direct Paddle Customer Portal access',
-      'Cancel anytime with zero lock-in'
-    ]
-  },
-  ANNUAL: {
-    id: 'pro_annual',
-    name: 'Pro Annual',
-    price: 39,
-    interval: 'year',
-    discountPill: 'Save 35% (~$3.25/mo)',
-    paddlePriceId: process.env.PADDLE_PRICE_ID_PRO_ANNUAL || 'pri_pro_annual_39usd',
-    // Backward-compatible alias
-    stripePriceId: process.env.PADDLE_PRICE_ID_PRO_ANNUAL || 'pri_pro_annual_39usd',
-    features: [
-      'All Pro Monthly features included',
-      'Priority vectorization throughput',
-      'Unlimited version history exports',
-      'Best value: save 35% compared to monthly'
+      'All section parsers (Education, Experience, Skills, Projects)',
+      'Job listings & tailored role matching',
+      'Cloud data persistence powered by Supabase PostgreSQL',
+      'Zero subscription fees or credit card requirements'
     ]
   }
 };
 
 export const billingService = {
-  /**
-   * Create Paddle Checkout / Transaction session for subscription
-   */
-  async createCheckoutSession(userId, planType = 'monthly', hostUrl = 'http://localhost:3000') {
-    let user = db.users.find(userId);
-    if (!user) {
-      user = db.users.create({ id: userId, email: `${userId}@example.com`, name: 'Candidate' });
-    }
-
-    const plan = planType === 'annual' ? PLANS.ANNUAL : PLANS.MONTHLY;
-
-    // 1. Live Paddle API Integration via @paddle/paddle-node-sdk
-    if (paddleClient && paddleApiKey) {
-      try {
-        let sub = db.subscriptions.findByUserId(userId);
-        let customerId = sub?.paddleCustomerId;
-
-        if (!customerId) {
-          try {
-            const customer = await paddleClient.customers.create({
-              email: user.email,
-              name: user.name,
-              customData: { userId }
-            });
-            customerId = customer.id;
-          } catch (custErr) {
-            console.warn('[Paddle] Customer lookup/creation notice:', custErr.message);
-          }
-        }
-
-        const transaction = await paddleClient.transactions.create({
-          items: [
-            {
-              priceId: plan.paddlePriceId,
-              quantity: 1
-            }
-          ],
-          customerId: customerId || undefined,
-          customData: {
-            userId,
-            planType
-          },
-          checkout: {
-            successUrl: `${hostUrl}/?billing=success&session_id={transaction_id}`
-          }
-        });
-
-        return {
-          transactionId: transaction.id,
-          checkoutUrl: transaction.checkout?.url || `${hostUrl}/?billing=success&session_id=${transaction.id}`,
-          priceId: plan.paddlePriceId,
-          clientToken: process.env.PADDLE_CLIENT_TOKEN || null,
-          environment: paddleEnvString,
-          isMock: false
-        };
-      } catch (err) {
-        console.error('[Paddle SDK] Transaction creation error:', err.message);
-        throw new Error(`Paddle Checkout Error: ${err.message}`);
-      }
-    }
-
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Payment processing is not configured. Please contact support.');
-    }
-
-    const simTxnId = `txn_sim_${Date.now()}`;
+  async createCheckoutSession(userId, plan = 'free_unlimited', hostUrl = 'http://localhost:3000') {
     return {
-      transactionId: simTxnId,
-      checkoutUrl: `${hostUrl}/?billing=success&demo_upgrade=true&session_id=${simTxnId}`,
-      priceId: plan.paddlePriceId,
-      clientToken: process.env.PADDLE_CLIENT_TOKEN || 'test_client_token',
-      environment: 'sandbox',
-      isMock: true
+      success: true,
+      isFree: true,
+      message: 'Resume Rater is completely 100% free with unlimited scans. No payment or subscription required.',
+      checkoutUrl: `${hostUrl}/#features`
     };
   },
 
-  /**
-   * Create Customer Portal / Management Session for managing subscription
-   */
   async createPortalSession(userId, returnUrl = 'http://localhost:3000') {
-    const sub = db.subscriptions.findByUserId(userId);
-    if (!sub) {
-      throw new Error('No active subscription found.');
-    }
-
-    if (paddleClient && sub.paddleSubscriptionId) {
-      try {
-        const subscription = await paddleClient.subscriptions.get(sub.paddleSubscriptionId);
-        const managementUrl = subscription.managementUrls?.updatePaymentMethod || subscription.managementUrls?.cancel;
-        if (managementUrl) {
-          return { portalUrl: managementUrl };
-        }
-      } catch (err) {
-        console.warn('[Paddle] Subscription portal URL lookup error:', err.message);
-      }
-    }
-
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Payment processing is not configured.');
-    }
-    return { portalUrl: `${returnUrl}/#pricing` };
+    return {
+      success: true,
+      isFree: true,
+      message: 'Your account is on the 100% Free Unlimited plan.',
+      url: returnUrl
+    };
   },
 
-  /**
-   * Handle incoming Paddle webhook events (transaction.completed, subscription.activated, etc.)
-   */
-  async handleWebhook(rawBody, signatureHeader) {
-    let event = null;
-
-    const isProduction = process.env.NODE_ENV === 'production';
-
-    // 1. Validate signature using official Paddle SDK if configured
-    if (paddleWebhookSecretKey) {
-      if (!signatureHeader) {
-        throw new Error('Missing Paddle signature header');
-      }
-      if (paddleClient) {
-        try {
-          const rawString = typeof rawBody === 'string' ? rawBody : rawBody.toString('utf8');
-          event = await paddleClient.webhooks.unmarshal(rawString, paddleWebhookSecretKey, signatureHeader);
-        } catch (err) {
-          console.error('[Paddle Webhook] Signature verification failed:', err.message);
-          throw new Error(`Webhook Error: ${err.message}`);
-        }
-      } else {
-        throw new Error('Paddle SDK client not initialized for webhook verification');
-      }
-    } else if (isProduction) {
-      throw new Error('Paddle webhook secret key is not configured in production environment.');
-    } else {
-      // Direct payload unmarshaling for testing/simulation in development
-      try {
-        if (Buffer.isBuffer(rawBody)) {
-          event = JSON.parse(rawBody.toString('utf8'));
-        } else if (typeof rawBody === 'string') {
-          event = JSON.parse(rawBody);
-        } else {
-          event = rawBody;
-        }
-      } catch (err) {
-        throw new Error('Invalid webhook JSON payload');
-      }
-    }
-
-    if (!event) {
-      throw new Error('Webhook event payload is empty');
-    }
-
-    const eventType = event.eventType || event.event_type || event.type || 'unknown';
-    const eventData = event.data || {};
-
-    console.log(`[Paddle Webhook] Received event: ${eventType}`);
-
-    // Audit log webhook event in database
-    if (db.webhookEvents) {
-      db.webhookEvents.record({
-        id: event.eventId || event.event_id || event.id || `evt_pdl_${Date.now()}`,
-        type: eventType,
-        payload: eventData
-      });
-    }
-
-    // Process Paddle Billing Event Types
-    switch (eventType) {
-      case 'transaction.completed':
-      case 'transaction.paid': {
-        const customData = eventData.customData || eventData.custom_data || {};
-        const userId = customData.userId || customData.user_id || eventData.customerId || 'usr_demo_001';
-        const planType = customData.planType || customData.plan_type || 'monthly';
-        const customerId = eventData.customerId || eventData.customer_id;
-        const subId = eventData.subscriptionId || eventData.subscription_id;
-
-        const expires = new Date();
-        if (planType === 'annual') {
-          expires.setFullYear(expires.getFullYear() + 1);
-        } else {
-          expires.setMonth(expires.getMonth() + 1);
-        }
-
-        db.subscriptions.upsert({
-          userId,
-          paddleCustomerId: customerId,
-          paddleSubscriptionId: subId,
-          paddleTransactionId: eventData.id,
-          planTier: planType === 'annual' ? 'pro_annual' : 'pro_monthly',
-          status: 'active',
-          currentPeriodEnd: expires.toISOString()
-        });
-        console.log(`[Paddle Webhook] User ${userId} upgraded to Pro via transaction ${eventData.id}`);
-        break;
-      }
-
-      case 'subscription.activated':
-      case 'subscription.created': {
-        const subId = eventData.id;
-        const customerId = eventData.customerId || eventData.customer_id;
-        const customData = eventData.customData || eventData.custom_data || {};
-        let existingSub = db.subscriptions.findByPaddleCustomerId(customerId) || db.subscriptions.findByPaddleSubId(subId);
-
-        const currentPeriodEnd = eventData.currentBillingPeriod?.endsAt || 
-                                 eventData.current_billing_period?.ends_at || 
-                                 new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString();
-
-        db.subscriptions.upsert({
-          userId: existingSub?.userId || customData.userId || 'usr_demo_001',
-          paddleCustomerId: customerId,
-          paddleSubscriptionId: subId,
-          status: 'active',
-          currentPeriodEnd
-        });
-        console.log(`[Paddle Webhook] Subscription ${subId} activated for customer ${customerId}`);
-        break;
-      }
-
-      case 'subscription.updated': {
-        const subId = eventData.id;
-        const customerId = eventData.customerId || eventData.customer_id;
-        const status = eventData.status || 'active'; // 'active', 'past_due', 'paused'
-        const currentPeriodEnd = eventData.currentBillingPeriod?.endsAt || eventData.current_billing_period?.ends_at;
-        const isScheduledCancel = eventData.scheduledChange?.action === 'cancel';
-
-        const existingSub = db.subscriptions.findByPaddleSubId(subId) || db.subscriptions.findByPaddleCustomerId(customerId);
-        if (existingSub) {
-          db.subscriptions.upsert({
-            userId: existingSub.userId,
-            paddleCustomerId: customerId,
-            paddleSubscriptionId: subId,
-            status,
-            currentPeriodEnd: currentPeriodEnd || existingSub.currentPeriodEnd,
-            cancelAtPeriodEnd: isScheduledCancel
-          });
-          console.log(`[Paddle Webhook] Subscription ${subId} updated to: ${status}`);
-        }
-        break;
-      }
-
-      case 'subscription.canceled':
-      case 'subscription.paused': {
-        const subId = eventData.id;
-        const customerId = eventData.customerId || eventData.customer_id;
-        const existingSub = db.subscriptions.findByPaddleSubId(subId) || db.subscriptions.findByPaddleCustomerId(customerId);
-        if (existingSub) {
-          db.subscriptions.upsert({
-            userId: existingSub.userId,
-            paddleCustomerId: customerId,
-            paddleSubscriptionId: subId,
-            status: 'canceled',
-            currentPeriodEnd: new Date().toISOString()
-          });
-          console.log(`[Paddle Webhook] Subscription ${subId} canceled.`);
-        }
-        break;
-      }
-
-      case 'subscription.past_due': {
-        const subId = eventData.id;
-        const customerId = eventData.customerId || eventData.customer_id;
-        const existingSub = db.subscriptions.findByPaddleSubId(subId) || db.subscriptions.findByPaddleCustomerId(customerId);
-        if (existingSub) {
-          db.subscriptions.upsert({
-            userId: existingSub.userId,
-            paddleCustomerId: customerId,
-            paddleSubscriptionId: subId,
-            status: 'past_due'
-          });
-          console.warn(`[Paddle Webhook] Subscription ${subId} marked past_due.`);
-        }
-        break;
-      }
-
-      default:
-        console.log(`[Paddle Webhook] Handled unmapped event type: ${eventType}`);
-    }
-
-    return { received: true, eventType };
+  async handleWebhookEvent(rawBody, signatureHeader) {
+    return { received: true, message: 'Platform operates in 100% free mode.' };
   }
 };
 
 /**
  * Subscription & Quota Enforcement Middleware
+ * Fully unlocked: All users have 100% free, unlimited ATS scans.
  */
 export function checkSubscriptionAndQuota(req, res, next) {
-  // 0. Admin Authentication Override (Full Unrestricted Access Bypass)
-  if (isAdminRequest(req)) {
-    const adminUser = getAdminUser();
-    const adminSub = getAdminSubscription();
-    req.user = adminUser;
-    req.isAdmin = true;
-    req.isPro = true;
-    req.subscription = adminSub;
-    req.usage = {
-      scansUsed: 0,
-      maxFreeScans: 999999,
-      scansRemaining: 'unlimited',
-      monthYear: new Date().toISOString().slice(0, 7)
-    };
-    req.consumeScanQuota = () => {}; // Unlimited bypass for Admin
-    return next();
-  }
+  const admin = isAdminRequest(req);
+  const userId = admin ? 'usr_admin_saad' : (req.headers['x-user-id'] || req.cookies?.user_id || 'usr_demo_001');
 
-  // Resolve current user (from header, cookie, or default demo candidate)
-  const userId = req.headers['x-user-id'] || req.cookies?.user_id || 'usr_demo_001';
-  let user = db.users.find(userId);
+  let user = admin ? getAdminUser() : db.users.find(userId);
   if (!user) {
-    user = db.users.create({ id: userId, email: 'candidate@example.com', name: 'Demo Candidate' });
+    user = db.users.create({ id: userId, email: admin ? 'saadalioffic@gmail.com' : 'candidate@example.com', name: admin ? 'Saad Ali (Admin)' : 'Candidate' });
   }
+
   req.user = user;
-
-  // 1. Check for Active Subscription
-  const activeSub = db.subscriptions.findActiveByUserId(userId);
-  if (activeSub) {
-    req.isPro = true;
-    req.subscription = activeSub;
-    req.consumeScanQuota = () => {}; // Unlimited for Pro
-    return next();
-  }
-
-  // Allow sample preview without consuming quota or triggering quota lock
-  const isSamplePreviewRequest = req.body?.isSamplePreview && (req.path?.endsWith('/parse-sample') || req.originalUrl?.includes('/parse-sample'));
-  if (isSamplePreviewRequest) {
-    req.isPro = !!activeSub;
-    req.subscription = activeSub;
-    req.usage = db.userUsage.getMonthlyUsage(userId, new Date().toISOString().slice(0, 7));
-    req.consumeScanQuota = () => {};
-    return next();
-  }
-
-  // 2. Free Tier: Check monthly quota
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const usage = db.userUsage.getMonthlyUsage(userId, currentMonth);
-
-  req.isPro = false;
-  req.subscription = null;
-  req.usage = usage;
-
-  // Enforce Free Limit (3 scans/month)
-  if (usage.scansUsed >= usage.maxFreeScans) {
-    return res.status(403).json({
-      success: false,
-      error: `Monthly free scan limit reached (${usage.scansUsed}/${usage.maxFreeScans}).`,
-      requiresUpgrade: true,
-      upgradeUrl: '/#pricing',
-      redirectUrl: '/#pricing',
-      checkoutApi: '/api/create-checkout-session',
-      scansUsed: usage.scansUsed,
-      maxFreeScans: usage.maxFreeScans,
-      message: 'Upgrade to Pro ($5/month) with Paddle for unlimited ATS scans, multi-engine simulations, and Recharts gap analysis.'
-    });
-  }
-
-  // Quota consumer helper to be called on successful scan
-  req.consumeScanQuota = () => {
-    db.userUsage.incrementScan(userId, currentMonth);
+  req.isAdmin = admin;
+  req.isPro = true;
+  req.isFreeForever = true;
+  req.subscription = admin ? getAdminSubscription() : {
+    id: 'sub_free_unlimited',
+    userId,
+    planTier: 'free_unlimited',
+    status: 'active',
+    currentPeriodEnd: '2099-12-31T23:59:59.999Z',
+    isPro: true
   };
 
-  next();
+  req.usage = {
+    scansUsed: 0,
+    maxFreeScans: 999999,
+    scansRemaining: 'unlimited',
+    monthYear: new Date().toISOString().slice(0, 7)
+  };
+
+  // Scan quota consumer: non-limiting pass-through
+  req.consumeScanQuota = () => {};
+
+  return next();
 }

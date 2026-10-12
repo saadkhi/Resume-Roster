@@ -119,15 +119,24 @@ app.set('views', validViewsDirs.length > 0 ? validViewsDirs : path.join(process.
 function renderIndexDashboard(req, res, customData = {}) {
   try {
     const admin = isAdminRequest(req);
-    const userId = admin ? 'usr_admin_saad' : (req.headers['x-user-id'] || 'usr_demo_001');
-    const sub = admin ? getAdminSubscription() : db.subscriptions.findActiveByUserId(userId);
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const usage = admin
-      ? { scansUsed: 0, maxFreeScans: 999999, scansRemaining: 'unlimited' }
-      : db.userUsage.getMonthlyUsage(userId, currentMonth);
+    const cookieUserId = req.cookies?.user_id;
+    const cookieUserEmail = req.cookies?.user_email;
+    const cookieUserName = req.cookies?.user_name;
+    const cookieUserAvatar = req.cookies?.user_avatar;
 
-    const isPro = admin || !!sub;
-    const planTier = admin ? 'Admin Unlimited' : (sub?.planTier || 'free');
+    const userId = admin ? 'usr_admin_saad' : (cookieUserId || req.headers['x-user-id'] || 'usr_demo_001');
+    let user = db.users.find(userId);
+    if (!user && cookieUserEmail) {
+      user = db.users.create({
+        id: userId,
+        email: cookieUserEmail,
+        name: cookieUserName || cookieUserEmail.split('@')[0],
+        avatar: cookieUserAvatar || ''
+      });
+    }
+
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const usage = db.userUsage.getMonthlyUsage(userId, currentMonth);
 
     const templateData = {
       error: null,
@@ -138,14 +147,28 @@ function renderIndexDashboard(req, res, customData = {}) {
       isDevMode,
       isAdmin: admin,
       adminEmail: ADMIN_EMAIL,
+      currentUser: user ? {
+        id: user.id,
+        email: user.email,
+        name: user.name || user.email.split('@')[0],
+        avatar: cookieUserAvatar || user.avatar || ''
+      } : (cookieUserEmail ? {
+        id: userId,
+        email: cookieUserEmail,
+        name: cookieUserName || cookieUserEmail.split('@')[0],
+        avatar: cookieUserAvatar || ''
+      } : null),
+      supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder',
       billing: {
         isAdmin: admin,
-        isPro: isPro,
-        planTier: planTier,
+        isPro: true,
+        isFreeForever: true,
+        planTier: '100% Free Forever',
         scansUsed: usage ? usage.scansUsed : 0,
-        maxFreeScans: usage ? usage.maxFreeScans : 3,
-        scansRemaining: isPro ? 'unlimited' : Math.max(0, (usage ? usage.maxFreeScans : 3) - (usage ? usage.scansUsed : 0)),
-        unrestrictedAccess: isPro
+        maxFreeScans: 'Unlimited',
+        scansRemaining: 'unlimited',
+        unrestrictedAccess: true
       },
       ...customData
     };
@@ -237,6 +260,23 @@ function renderEjsPage(viewName, req, res, customData = {}) {
 
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(express.json({ limit: '1mb' }));
+
+// Lightweight cookie parser middleware
+app.use((req, res, next) => {
+  req.cookies = req.cookies || {};
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach(c => {
+      const parts = c.split('=');
+      if (parts.length >= 2) {
+        const key = parts[0].trim();
+        const val = decodeURIComponent(parts.slice(1).join('=').trim());
+        req.cookies[key] = val;
+      }
+    });
+  }
+  next();
+});
 
 const publicDir = fs.existsSync(path.join(__dirname, 'public'))
   ? path.join(__dirname, 'public')
@@ -903,98 +943,129 @@ const handleJobsRequest = async (req, res) => {
 app.get('/api/jobs', apiLimiter, handleJobsRequest);
 app.post('/api/jobs', apiLimiter, handleJobsRequest);
 
-// 6. API: Create Paddle Checkout Session ($5/mo or $39/yr)
-app.all('/api/create-checkout-session', billingLimiter, async (req, res) => {
+// 6. API: 100% Free Platform - Checkout bypassed
+app.all('/api/create-checkout-session', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  if (req.method !== 'POST' && req.method !== 'GET') {
-    return res.status(405).json({ success: false, error: 'Method not allowed' });
-  }
-
-  try {
-    const admin = isAdminRequest(req);
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
-    const hostUrl = `${protocol}://${host}`;
-
-    // Admin Authentication Override: Instant unrestricted access without requiring payment
-    if (admin) {
-      return res.status(200).json({
-        success: true,
-        isAdmin: true,
-        isPro: true,
-        unrestrictedAccess: true,
-        plan: req.body?.plan || req.query?.plan || 'admin_unlimited',
-        message: 'Admin authentication override active. You have full, unrestricted access to all platform features.',
-        checkoutUrl: `${hostUrl}/?admin=true&unrestricted=active`,
-        transactionId: `txn_admin_${Date.now()}`
-      });
-    }
-
-    if (req.method === 'GET') {
-      return res.status(200).json({
-        success: true,
-        message: 'Use POST /api/create-checkout-session with { plan: "monthly" | "annual" } to create a session.',
-        availablePlans: ['monthly', 'annual']
-      });
-    }
-
-    const userId = req.headers['x-user-id'] || req.body?.userId || 'usr_demo_001';
-    const { plan } = req.body || {}; // 'monthly' | 'annual'
-
-    const result = await billingService.createCheckoutSession(userId, plan || 'monthly', hostUrl);
-    return res.status(200).json({ success: true, ...result });
-  } catch (err) {
-    console.error('Create checkout session error:', err);
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err, 'Failed to start checkout session.') });
-  }
+  return res.status(200).json({
+    success: true,
+    isFree: true,
+    isPro: true,
+    unrestrictedAccess: true,
+    plan: 'free_unlimited',
+    message: 'Resume Rater is completely 100% free with unlimited scans. No subscription or checkout is required!',
+    checkoutUrl: '/#features'
+  });
 });
 
-// 7. API: Customer Portal Session for Managing Subscriptions
-app.post('/api/create-portal-session', billingLimiter, async (req, res) => {
+// 7. API: Customer Portal (100% Free Account)
+app.all('/api/create-portal-session', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  try {
-    const userId = req.headers['x-user-id'] || 'usr_demo_001';
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
-    const returnUrl = `${protocol}://${host}`;
-
-    const result = await billingService.createPortalSession(userId, returnUrl);
-    return res.json({ success: true, ...result });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err, 'Failed to create portal session.') });
-  }
+  return res.json({
+    success: true,
+    isFree: true,
+    message: 'Your account has full, permanent unrestricted access to all features at no cost.',
+    url: '/'
+  });
 });
 
-// 8. API: Subscription & Monthly Quota Status
+// 8. API: Subscription & Monthly Quota Status (100% Free Forever)
 app.get('/api/subscription-status', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const admin = isAdminRequest(req);
-    const userId = admin ? 'usr_admin_saad' : (req.headers['x-user-id'] || 'usr_demo_001');
-    const sub = admin ? getAdminSubscription() : db.subscriptions.findActiveByUserId(userId);
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const usage = admin
-      ? { scansUsed: 0, maxFreeScans: 999999 }
-      : db.userUsage.getMonthlyUsage(userId, currentMonth);
+    const userId = admin ? 'usr_admin_saad' : (req.cookies?.user_id || req.headers['x-user-id'] || 'usr_demo_001');
 
-    const isPro = admin || !!sub;
     return res.json({
       success: true,
       userId,
-      email: admin ? ADMIN_EMAIL : 'candidate@example.com',
+      email: admin ? ADMIN_EMAIL : (req.cookies?.user_email || 'candidate@example.com'),
       isAdmin: admin,
-      isPro,
-      planTier: admin ? 'admin_unlimited' : (sub?.planTier || 'free'),
-      status: admin ? 'active' : (sub?.status || 'inactive'),
-      currentPeriodEnd: admin ? '2099-12-31T23:59:59.999Z' : (sub?.currentPeriodEnd || null),
-      scansUsed: usage.scansUsed,
-      maxFreeScans: usage.maxFreeScans,
-      scansRemaining: isPro ? 'unlimited' : Math.max(0, usage.maxFreeScans - usage.scansUsed),
-      unrestrictedAccess: isPro
+      isPro: true,
+      isFreeForever: true,
+      planTier: '100% Free Forever',
+      status: 'active',
+      currentPeriodEnd: '2099-12-31T23:59:59.999Z',
+      scansUsed: 0,
+      maxFreeScans: 'Unlimited',
+      scansRemaining: 'unlimited',
+      unrestrictedAccess: true,
+      message: 'All ATS resume evaluation tools and visualizations are 100% free with unlimited scans.'
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
   }
+});
+
+// === Supabase Auth Endpoints (Google, GitHub, Microsoft, Email) ===
+app.get('/auth', (req, res) => {
+  renderEjsPage('auth', req, res, {
+    supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder'
+  });
+});
+
+app.get('/auth/callback', (req, res) => {
+  renderEjsPage('auth-callback', req, res, {
+    supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder'
+  });
+});
+
+app.post('/api/auth/sync', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { id, email, name, avatar } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email is required.' });
+    }
+
+    const userId = id || `usr_${Date.now()}`;
+    let user = db.users.findByEmail(email);
+    if (!user) {
+      user = db.users.create({
+        id: userId,
+        email,
+        name: name || email.split('@')[0],
+        avatar: avatar || '',
+        role: email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user'
+      });
+    }
+
+    // Set cookie headers for persistent authentication
+    res.cookie('user_id', user.id, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
+    res.cookie('user_email', user.email, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
+    if (user.name) res.cookie('user_name', user.name, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
+    if (avatar) res.cookie('user_avatar', avatar, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
+
+    return res.json({ success: true, user });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
+  }
+});
+
+app.get('/api/auth/me', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  const userId = req.cookies?.user_id || req.headers['x-user-id'];
+  const user = userId ? db.users.find(userId) : null;
+  return res.json({
+    success: true,
+    authenticated: !!user || !!req.cookies?.user_email,
+    user: user || (req.cookies?.user_email ? {
+      id: req.cookies.user_id || 'usr_session',
+      email: req.cookies.user_email,
+      name: req.cookies.user_name || req.cookies.user_email.split('@')[0],
+      avatar: req.cookies.user_avatar || ''
+    } : null)
+  });
+});
+
+app.post('/api/auth/signout', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.clearCookie('user_id', { path: '/' });
+  res.clearCookie('user_email', { path: '/' });
+  res.clearCookie('user_name', { path: '/' });
+  res.clearCookie('user_avatar', { path: '/' });
+  return res.json({ success: true, message: 'Signed out successfully.' });
 });
 
 // 8b. API: Admin Status & Override Toggle Endpoints
@@ -1060,139 +1131,18 @@ app.post('/api/supabase/test', async (req, res) => {
   }
 });
 
-// === Development-only test endpoints (completely disabled in production) ===
+// === Development-only test endpoints (100% Free Platform) ===
 if (isDevMode) {
-
-// 9. API: Dev/Test Toggle Pro status
-app.post('/api/test/toggle-pro', (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || 'usr_demo_001';
-    const sub = db.subscriptions.findActiveByUserId(userId);
-    const oneMonthFromNow = new Date();
-    oneMonthFromNow.setMonth(oneMonthFromNow.getMonth() + 1);
-
-    if (sub) {
-      db.subscriptions.upsert({
-        userId,
-        paddleCustomerId: `ctm_demo_${userId}`,
-        status: 'inactive',
-        planTier: 'free',
-        currentPeriodEnd: null
-      });
-      res.json({ success: true, isPro: false, message: 'Switched to Free tier (3 scans/month quota applies).' });
-    } else {
-      db.subscriptions.upsert({
-        userId,
-        paddleCustomerId: `ctm_demo_${userId}`,
-        paddleSubscriptionId: `sub_demo_${Date.now()}`,
-        status: 'active',
-        planTier: 'pro_monthly',
-        currentPeriodEnd: oneMonthFromNow.toISOString()
-      });
-      res.json({ success: true, isPro: true, message: 'Activated Pro tier subscription ($5/month simulated with Paddle).' });
-    }
-  } catch (err) {
-    res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
-});
-
-// 10. API: Dev/Test Reset monthly quota count
-app.post('/api/test/reset-quota', (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || 'usr_demo_001';
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const usage = db.userUsage.setScansUsed(userId, 0, currentMonth);
-    res.json({ success: true, usage, message: 'Monthly scan count reset to 0/3.' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
-});
-
-// 11. API: Dev/Test Simulate hitting free scan limit (sets scansUsed to 3)
-app.post('/api/test/simulate-limit-reached', (req, res) => {
-  try {
-    const userId = req.headers['x-user-id'] || 'usr_demo_001';
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    db.subscriptions.upsert({
-      userId,
-      paddleCustomerId: `ctm_demo_${userId}`,
-      status: 'inactive',
-      planTier: 'free',
-      currentPeriodEnd: null
+  app.all(['/api/test/toggle-pro', '/api/test/reset-quota', '/api/test/simulate-limit-reached'], (req, res) => {
+    return res.json({
+      success: true,
+      isPro: true,
+      isFree: true,
+      scansRemaining: 'unlimited',
+      planTier: '100% Free Forever',
+      message: 'Resume Rater is 100% free with unlimited scans. No subscription or paywall active.'
     });
-    const usage = db.userUsage.setScansUsed(userId, 3, currentMonth);
-    res.json({ success: true, usage, isPro: false, message: 'Simulated 3/3 scans used. Next scan will trigger HTTP 403 upgrade paywall.' });
-  } catch (err) {
-    res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
-});
-
-// 12. API: Dev/Test Simulate Paddle Webhook Event
-app.post('/api/test/simulate-webhook', async (req, res) => {
-  try {
-    const { eventType = 'transaction.completed', userId = 'usr_demo_001', plan = 'monthly' } = req.body || {};
-    let mockPayload;
-    const sub = db.subscriptions.findByUserId(userId);
-    const customerId = sub?.paddleCustomerId || `ctm_sim_${userId}`;
-    const subId = sub?.paddleSubscriptionId || `sub_sim_${Date.now()}`;
-
-    if (eventType === 'transaction.completed' || eventType === 'checkout.session.completed' || eventType === 'transaction.paid') {
-      mockPayload = {
-        eventId: `evt_sim_${Date.now()}`,
-        eventType: 'transaction.completed',
-        data: {
-          id: `txn_sim_${Date.now()}`,
-          customerId,
-          subscriptionId: subId,
-          customData: { userId, planType: plan },
-          details: { totals: { total: plan === 'annual' ? '3900' : '500' } }
-        }
-      };
-    } else if (eventType === 'subscription.activated' || eventType === 'subscription.created') {
-      const expires = new Date();
-      expires.setMonth(expires.getMonth() + 1);
-      mockPayload = {
-        eventId: `evt_sim_${Date.now()}`,
-        eventType: 'subscription.activated',
-        data: {
-          id: subId,
-          customerId,
-          status: 'active',
-          currentBillingPeriod: { endsAt: expires.toISOString() },
-          customData: { userId, planType: plan }
-        }
-      };
-    } else if (eventType === 'subscription.canceled' || eventType === 'customer.subscription.deleted') {
-      mockPayload = {
-        eventId: `evt_sim_${Date.now()}`,
-        eventType: 'subscription.canceled',
-        data: {
-          id: subId,
-          customerId,
-          status: 'canceled'
-        }
-      };
-    } else if (eventType === 'subscription.past_due' || eventType === 'invoice.payment_failed') {
-      mockPayload = {
-        eventId: `evt_sim_${Date.now()}`,
-        eventType: 'subscription.past_due',
-        data: {
-          id: subId,
-          customerId,
-          status: 'past_due'
-        }
-      };
-    } else {
-      return res.status(400).json({ success: false, error: 'Unsupported simulation eventType: ' + eventType });
-    }
-
-    const result = await billingService.handleWebhook(mockPayload, null);
-    res.json({ success: true, simulatedEvent: mockPayload.eventType, result });
-  } catch (err) {
-    res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
-});
-
+  });
 } // end if (isDevMode)
 
 // Routes
@@ -1319,39 +1269,7 @@ app.post('/upload', uploadLimiter, (req, res, next) => {
       ? { scansUsed: 0, maxFreeScans: 999999, scansRemaining: 'unlimited' }
       : db.userUsage.getMonthlyUsage(userId, currentMonth);
 
-    // Enforce 403 status code if on free tier and scan limit reached (bypassed for Admin)
-    if (!admin && !sub && usage.scansUsed >= usage.maxFreeScans) {
-      if (req.headers.accept?.includes('application/json')) {
-        return res.status(403).json({
-          success: false,
-          error: `Monthly free scan limit reached (${usage.scansUsed}/${usage.maxFreeScans}).`,
-          requiresUpgrade: true,
-          upgradeUrl: '/#pricing',
-          redirectUrl: '/#pricing',
-          checkoutApi: '/api/create-checkout-session',
-          scansUsed: usage.scansUsed,
-          maxFreeScans: usage.maxFreeScans,
-          message: 'Upgrade to Pro ($5/month) for unlimited ATS scans, multi-engine simulations, and Recharts gap analysis.'
-        });
-      }
-      res.status(403);
-      return renderIndexDashboard(req, res, {
-        error: `Monthly free scan limit reached (${usage.scansUsed}/${usage.maxFreeScans}). Upgrade to Pro ($5/mo) for unlimited scans.`,
-        prediction_category: null,
-        resume_match_rating: null,
-        numerical_similarity_score: null,
-        csv_data: null,
-        limit_reached: true,
-        redirectUrl: '/#pricing',
-        billing: {
-          isPro: false,
-          planTier: 'free',
-          scansUsed: usage.scansUsed,
-          maxFreeScans: usage.maxFreeScans,
-          scansRemaining: 0
-        }
-      });
-    }
+    // All users have 100% Free, Unlimited ATS scans - quota check bypassed
 
     const jobDescriptionText = req.body.job_description_text ? req.body.job_description_text.trim() : '';
     const jobKeywords = req.body.job_keywords ? req.body.job_keywords.trim() : '';
@@ -1419,13 +1337,9 @@ app.post('/upload', uploadLimiter, (req, res, next) => {
     };
     saveToCsv(csvData);
 
-    // Consume scan quota for free user (bypassed for Admin and active subscribers)
-    if (!admin && !sub) {
-      db.userUsage.incrementScan(userId, currentMonth);
-    }
-    const updatedUsage = admin
-      ? { scansUsed: 0, maxFreeScans: 999999 }
-      : db.userUsage.getMonthlyUsage(userId, currentMonth);
+    // Increment scan analytics count
+    db.userUsage.incrementScan(userId, currentMonth);
+    const updatedUsage = db.userUsage.getMonthlyUsage(userId, currentMonth);
 
     // Persist to database
     const savedResume = db.resumes.create({
@@ -1457,7 +1371,6 @@ app.post('/upload', uploadLimiter, (req, res, next) => {
       { Section: 'Projects', Content: resumeSections.Projects }
     ];
 
-    const isPro = admin || !!sub;
     return renderIndexDashboard(req, res, {
       error: null,
       prediction_category: predictionId,
@@ -1467,12 +1380,13 @@ app.post('/upload', uploadLimiter, (req, res, next) => {
       isAdmin: admin,
       billing: {
         isAdmin: admin,
-        isPro: isPro,
-        planTier: admin ? 'Admin Unlimited' : (sub?.planTier || 'free'),
+        isPro: true,
+        isFreeForever: true,
+        planTier: '100% Free Forever',
         scansUsed: updatedUsage.scansUsed,
-        maxFreeScans: updatedUsage.maxFreeScans,
-        scansRemaining: isPro ? 'unlimited' : Math.max(0, updatedUsage.maxFreeScans - updatedUsage.scansUsed),
-        unrestrictedAccess: isPro
+        maxFreeScans: 'Unlimited',
+        scansRemaining: 'unlimited',
+        unrestrictedAccess: true
       }
     });
   } catch (err) {

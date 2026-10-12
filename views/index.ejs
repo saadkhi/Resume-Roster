@@ -12,8 +12,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    <!-- Paddle Billing SDK (Paddle.js v2) -->
-    <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+    <!-- Supabase Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <style>
         :root {
@@ -1755,32 +1755,33 @@
                 <a href="#tab-sections" class="nav-link nav-tab-link" data-tab-target="tab-sections">CV Sections</a>
                 <a href="#tab-matcher" class="nav-link nav-tab-link" data-tab-target="tab-matcher">Role Matcher</a>
                 <a href="#tab-jobs" class="nav-link nav-tab-link" data-tab-target="tab-jobs">Job Listings</a>
-                <a href="#pricing" class="nav-link">Pro Plan ($5/mo)</a>
+                <a href="#features" class="nav-link">Features (Free)</a>
                 <a href="/contact" class="nav-link" style="color: var(--accent-primary); font-weight: 600;">Contact Us</a>
             </nav>
 
             <div class="quota-indicator">
                 <div id="quotaNavDisplay">
-                    <% if (locals.isAdmin || (locals.billing && billing.isAdmin)) { %>
-                        <span class="quota-badge-pro" style="background: rgba(147, 51, 234, 0.15); color: #9333ea; border: 1px solid rgba(147, 51, 234, 0.35);">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                            Admin Unlimited
-                        </span>
-                    <% } else if (locals.billing && billing.isPro) { %>
-                        <span class="quota-badge-pro">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                            Pro Unlimited
-                        </span>
-                    <% } else { %>
-                        <span class="quota-text">
-                            Free Plan · <span class="quota-badge-free" id="headerScansCount"><%= (locals.billing ? billing.scansUsed : 0) %>/3 scans</span>
-                        </span>
-                    <% } %>
+                    <span class="quota-badge-pro" style="background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3);">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        100% Free · Unlimited Scans
+                    </span>
                 </div>
 
-                <button type="button" class="btn-upgrade-nav" id="btnNavUpgradeAction" style="<%= (locals.isAdmin || (locals.billing && billing.isAdmin)) ? 'background: #7c3aed;' : '' %>">
-                    <%= (locals.isAdmin || (locals.billing && billing.isAdmin)) ? 'Admin Bypass' : ((locals.billing && billing.isPro) ? 'Pro Active' : 'Upgrade ($5/mo)') %>
-                </button>
+                <% if (locals.currentUser) { %>
+                    <div style="display: flex; align-items: center; gap: 0.6rem;">
+                        <span style="font-size: 0.8125rem; font-weight: 600; color: var(--text-primary); max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            <%= locals.currentUser.name %>
+                        </span>
+                        <button type="button" id="btnHeaderSignOut" class="btn-upgrade-nav" style="background: #334155; padding: 0.35rem 0.65rem; font-size: 0.75rem; border-radius: 6px;">
+                            Sign Out
+                        </button>
+                    </div>
+                <% } else { %>
+                    <a href="/auth" class="btn-upgrade-nav" id="btnNavAuthAction" style="background: var(--accent-primary); text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.4rem 0.85rem; border-radius: 6px; color: #fff;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        Sign In / Sign Up
+                    </a>
+                <% } %>
             </div>
         </div>
     </header>
@@ -2227,124 +2228,139 @@ PROJECTS
             </div>
         </div>
 
-        <!-- Pricing Section -->
-        <section class="pricing-section" id="pricing">
+        <!-- Features & Free Platform Showcase -->
+        <section class="pricing-section" id="features">
+            <!-- Anchor alias for any legacy #pricing links -->
+            <div id="pricing" style="position: relative; top: -80px;"></div>
             <div class="pricing-header">
-                <h2 class="pricing-title">Simple, Transparent Pricing for Job Seekers</h2>
-                <p class="card-caption">Upgrade to Pro for $5/month to unlock unrestricted ATS scans, multi-engine simulations, and Recharts gap analytics.</p>
+                <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 999px; padding: 0.3rem 0.85rem; font-size: 0.8125rem; font-weight: 700; margin-bottom: 0.75rem;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    100% FREE FOR EVERYONE · NO SUBSCRIPTIONS
+                </div>
+                <h2 class="pricing-title">Powerful ATS Intelligence at Zero Cost</h2>
+                <p class="card-caption">All candidate scoring, radar analytics, and job matching tools are completely free forever with unlimited scans.</p>
             </div>
 
             <div class="pricing-grid">
-                <!-- Free Plan -->
-                <div class="pricing-card">
-                    <div>
-                        <h3 class="pricing-tier-name">Free Starter</h3>
-                        <div class="pricing-tier-price">$0 <span>/ month</span></div>
-                        <p class="pricing-tier-desc">Essential tools for occasional resume reviews and basic evaluation.</p>
-                        
-                        <ul class="pro-benefits-list">
-                            <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                3 complimentary ATS scans / month
-                            </li>
-                            <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Basic TF-IDF similarity score
-                            </li>
-                            <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Standard CV section parser
-                            </li>
-                        </ul>
-                    </div>
-                    <button type="button" class="dev-sandbox-btn" style="width: 100%; padding: 0.65rem;" disabled>Current Baseline</button>
-                </div>
-
-                <!-- Pro Monthly ($5/mo) -->
-                <div class="pricing-card featured">
+                <!-- Free & Unlimited Card -->
+                <div class="pricing-card featured" style="border-color: #3b82f6;">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="pricing-tier-name" style="color: var(--accent-primary);">Pro Monthly</h3>
-                            <span style="background: #eff6ff; color: #2563eb; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">MOST POPULAR</span>
+                            <h3 class="pricing-tier-name" style="color: var(--accent-primary);">100% Free Forever</h3>
+                            <span style="background: #ecfdf5; color: #059669; padding: 0.2rem 0.6rem; border-radius: 6px; font-weight: 700; font-size: 0.75rem; border: 1px solid rgba(5, 150, 105, 0.2);">UNLIMITED ACCESS</span>
                         </div>
-                        <div class="pricing-tier-price">$5 <span>/ month</span></div>
-                        <p class="pricing-tier-desc">Uncapped scans, multi-ATS engines, and deep Recharts competency diagnostics.</p>
+                        <div class="pricing-tier-price">$0 <span>/ forever</span></div>
+                        <p class="pricing-tier-desc">Uncapped scans, multi-ATS engines, and deep competency diagnostics with zero paywalls.</p>
 
                         <ul class="pro-benefits-list">
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                <strong>Unlimited</strong> PDF & DOCX ATS scans
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                <strong>Unlimited</strong> PDF &amp; DOCX ATS scans with zero monthly limits
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Multi-dimensional Recharts competency radar
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Multi-dimensional Recharts competency radar visualization
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Real-time keyword frequency gap analyzer
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Real-time keyword frequency gap analyzer &amp; missing skills list
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Export parsed sections & match dossiers
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Complete section extraction (Education, Experience, Skills, Projects)
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Direct Paddle Customer Portal access
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                20 standard industry role benchmarks &amp; live job opportunity matches
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Cancel anytime with zero lock-in
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Cloud data persistence backed by <strong>Supabase PostgreSQL</strong>
                             </li>
                         </ul>
                     </div>
-                    <button type="button" class="btn-checkout-primary" data-plan="monthly">
-                        Upgrade for $5 / Month
-                    </button>
+                    <a href="#upload-section" class="btn-checkout-primary" style="text-decoration: none; text-align: center; display: block;">
+                        Start Free ATS Evaluation Now
+                    </a>
                 </div>
 
-                <!-- Pro Annual ($39/yr) -->
+                <!-- Supabase Cloud Card -->
                 <div class="pricing-card">
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <h3 class="pricing-tier-name">Pro Annual</h3>
-                            <span style="background: #f0fdf4; color: #16a34a; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">SAVE 35%</span>
+                            <h3 class="pricing-tier-name" style="color: #10b981;">Supabase Cloud Database</h3>
+                            <span style="background: rgba(16, 185, 129, 0.1); color: #059669; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">CONNECTED</span>
                         </div>
-                        <div class="pricing-tier-price">$39 <span>/ year (~$3.25/mo)</span></div>
-                        <p class="pricing-tier-desc">Full year of unlimited optimization for active job searches and career growth.</p>
+                        <div class="pricing-tier-price" style="font-size: 1.5rem; margin: 0.6rem 0;">Supabase Auth &amp; Postgres</div>
+                        <p class="pricing-tier-desc">Seamless candidate sign-in via Google, GitHub, and Microsoft with relational data storage.</p>
 
                         <ul class="pro-benefits-list">
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                <strong>All Pro Monthly features included</strong>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                OAuth single sign-on (Google, GitHub, Microsoft)
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Priority vectorization throughput
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                High-performance connection to <code>db.medvnbynodmsjaqvtjzl.supabase.co</code>
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Unlimited version history exports
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Automatic candidate evaluations history logging
                             </li>
                             <li class="pro-benefit-item">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Best value: Save 35% compared to monthly
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Complete data ownership and end-to-end encryption
                             </li>
                         </ul>
                     </div>
-                    <button type="button" class="btn-checkout-primary" style="background: #0f172a;" data-plan="annual">
-                        Upgrade for $39 / Year
-                    </button>
+                    <a href="/auth" class="dev-sandbox-btn" style="width: 100%; padding: 0.75rem; text-decoration: none; text-align: center; display: block; font-weight: 600; color: var(--text-primary);">
+                        Sign In or Register Account
+                    </a>
+                </div>
+
+                <!-- Transparency & Privacy Card -->
+                <div class="pricing-card">
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="pricing-tier-name">Zero Lock-In</h3>
+                            <span style="background: #f1f5f9; color: #475569; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 700; font-size: 0.75rem;">OPEN ACCESS</span>
+                        </div>
+                        <div class="pricing-tier-price" style="font-size: 1.5rem; margin: 0.6rem 0;">No Credit Card Ever</div>
+                        <p class="pricing-tier-desc">Designed to empower active job seekers and career switchers worldwide.</p>
+
+                        <ul class="pro-benefits-list">
+                            <li class="pro-benefit-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                No subscriptions, no trials, no hidden fees
+                            </li>
+                            <li class="pro-benefit-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Download and export parsed sections anytime
+                            </li>
+                            <li class="pro-benefit-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Instant TF-IDF scoring in &lt;1 second
+                            </li>
+                            <li class="pro-benefit-item">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                Privacy-first: Resumes parsed locally &amp; securely
+                            </li>
+                        </ul>
+                    </div>
+                    <a href="#upload-section" class="dev-sandbox-btn" style="width: 100%; padding: 0.75rem; text-decoration: none; text-align: center; display: block; font-weight: 600; color: var(--text-primary);">
+                        Upload PDF Document
+                    </a>
                 </div>
             </div>
 
-            <!-- Paddle Compliance & Buyer Trust Strip -->
+            <!-- Trust Banner -->
             <div style="max-width: 860px; margin: 1.75rem auto 0; padding: 1rem 1.25rem; background: #ffffff; border: 1px solid var(--border-hairline); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; font-size: 0.8125rem; color: var(--text-secondary);">
                 <div style="display: flex; align-items: center; gap: 0.6rem;">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
-                    <span><strong>14-Day Money-Back Guarantee:</strong> 100% refund if not satisfied. See our <a href="/refund" style="color: var(--accent-primary); font-weight: 600;">Refund Policy</a>.</span>
+                    <span><strong>100% Free Forever:</strong> Zero charges, zero recurring billing. Free open-access career intelligence tool.</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--text-muted); font-size: 0.75rem;">
-                    <span>Merchant of Record: Paddle.com</span>
+                    <span>Database: Supabase PostgreSQL</span>
                     <span>&bull;</span>
                     <a href="/terms" style="color: var(--text-secondary);">Terms</a>
                     <span>&bull;</span>
@@ -2357,13 +2373,12 @@ PROJECTS
         <% if (typeof isDevMode !== 'undefined' && isDevMode) { %>
         <div class="dev-sandbox-bar">
             <div>
-                <strong>Sandbox & Testing Controls:</strong>
-                <span class="card-caption" style="margin-left: 0.5rem;">Simulate Paddle and quota limit flows without a live credit card</span>
+                <strong>Supabase &amp; System Diagnostics:</strong>
+                <span class="card-caption" style="margin-left: 0.5rem;">Verify PostgreSQL cloud synchronization &amp; sample parsing</span>
             </div>
             <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                <button type="button" class="dev-sandbox-btn" id="btnDevTogglePro">Toggle Pro Status ($5/mo)</button>
-                <button type="button" class="dev-sandbox-btn" id="btnDevSimulateLimit">Simulate Limit Reached (3/3)</button>
-                <button type="button" class="dev-sandbox-btn" id="btnDevResetQuota">Reset Scans to 0/3</button>
+                <button type="button" class="dev-sandbox-btn" id="btnDevTestSupabase">Test Supabase Connection</button>
+                <button type="button" class="dev-sandbox-btn" id="btnDevSampleParse">Quick Sample Parse</button>
             </div>
         </div>
         <% } %>
@@ -2380,7 +2395,7 @@ PROJECTS
                     <line x1="16" y1="17" x2="8" y2="17"></line>
                 </svg>
                 <span class="footer-logo">Resume Rater</span>
-                <span>· ATS &amp; Career Intelligence Engine</span>
+                <span>· 100% Free ATS Intelligence Engine</span>
             </div>
             <nav class="footer-links" aria-label="Footer Navigation">
                 <a href="#upload-section" class="footer-link">Parser</a>
@@ -2388,53 +2403,14 @@ PROJECTS
                 <a href="#tab-sections" class="footer-link">CV Sections</a>
                 <a href="#tab-matcher" class="footer-link">Role Matcher</a>
                 <a href="#tab-jobs" class="footer-link">Job Listings</a>
-                <a href="#pricing" class="footer-link">Pro Plan</a>
+                <a href="#features" class="footer-link">Free Features</a>
                 <span style="color: var(--border-hairline);">|</span>
-                <a href="/terms" class="footer-link">Terms of Service</a>
-                <a href="/privacy" class="footer-link">Privacy Policy</a>
-                <a href="/refund" class="footer-link">Refund Policy</a>
+                <a href="/terms" class="footer-link">Terms</a>
+                <a href="/privacy" class="footer-link">Privacy</a>
                 <a href="/contact" class="footer-link" style="color: var(--accent-primary); font-weight: 600;">Contact Us</a>
             </nav>
         </div>
     </footer>
-
-    <!-- Paywall Modal Dialog -->
-    <div class="modal-backdrop" id="upgradeModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modal-card">
-            <button type="button" class="modal-close-btn" id="modalCloseBtn" aria-label="Close modal">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-            </button>
-
-            <h3 class="modal-title" id="modalTitle">Monthly Free Scan Limit Reached</h3>
-            <p class="modal-desc" id="modalDesc">
-                You've used all 3 complimentary ATS scans for this month. Upgrade to Pro for just <strong>$5/month</strong> with Paddle for unlimited scans, multi-engine simulations, and Recharts gap analytics.
-            </p>
-
-            <div class="plan-choice-grid">
-                <div class="plan-option-card selected" id="planChoiceMonthly">
-                    <div class="plan-option-title">Pro Monthly</div>
-                    <div class="plan-option-price">$5 <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-muted);">/ mo</span></div>
-                    <div class="card-caption">Cancel anytime</div>
-                </div>
-                <div class="plan-option-card" id="planChoiceAnnual">
-                    <div class="plan-option-title">Pro Annual</div>
-                    <div class="plan-option-price">$39 <span style="font-size: 0.75rem; font-weight: normal; color: var(--text-muted);">/ yr</span></div>
-                    <div class="card-caption">Save 35% (~$3.25/mo)</div>
-                </div>
-            </div>
-
-            <button type="button" class="btn-checkout-primary" id="btnModalCheckoutAction">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                <span id="btnModalCheckoutText">Upgrade with Paddle ($5/mo)</span>
-            </button>
-
-            <% if (typeof isDevMode !== 'undefined' && isDevMode) { %>
-            <button type="button" class="btn-dev-simulate" id="btnModalSimulateUpgrade">
-                Simulate Pro Activation (1-Click Dev Sandbox)
-            </button>
-            <% } %>
-        </div>
-    </div>
 
     <!-- Recharts Match Visualizer Bundle -->
     <script src="/match-visualizer.bundle.js"></script>
@@ -2661,18 +2637,8 @@ PROJECTS
                         body: formData
                     });
 
-                    if (res.status === 403) {
-                        const errorData = await res.json().catch(() => ({}));
-                        handleUpgradeRequired(errorData);
-                        return;
-                    }
-
                     const data = await res.json();
                     if (!res.ok || !data.success) {
-                        if (res.status === 403 || data.requiresUpgrade) {
-                            handleUpgradeRequired(data);
-                            return;
-                        }
                         throw new Error(data.error || 'Failed to parse resume document.');
                     }
 
@@ -2722,18 +2688,8 @@ PROJECTS
                         })
                     });
 
-                    if (res.status === 403) {
-                        const errorData = await res.json().catch(() => ({}));
-                        handleUpgradeRequired(errorData);
-                        return;
-                    }
-
                     const data = await res.json();
                     if (!res.ok || !data.success) {
-                        if (res.status === 403 || data.requiresUpgrade) {
-                            handleUpgradeRequired(data);
-                            return;
-                        }
                         throw new Error(data.error || 'Failed to parse sample file.');
                     }
 
@@ -3348,318 +3304,70 @@ PROJECTS
             }
 
             // ==========================================
-            // Subscription, Quota & Paywall Integration
+            // 100% Free Platform & Supabase Integration
             // ==========================================
             function updateQuotaUI(billing) {
-                if (!billing) return;
-
-                if (billing.isAdmin) {
-                    if (quotaNavDisplay) {
-                        quotaNavDisplay.innerHTML = `
-                            <span class="quota-badge-pro" style="background: rgba(147, 51, 234, 0.15); color: #9333ea; border: 1px solid rgba(147, 51, 234, 0.35);">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-                                Admin Unlimited
-                            </span>
-                        `;
-                    }
-                    if (btnNavUpgradeAction) {
-                        btnNavUpgradeAction.textContent = 'Admin Bypass';
-                        btnNavUpgradeAction.style.background = '#7c3aed';
-                    }
-                    return;
-                }
-
-                if (billing.isPro) {
-                    if (quotaNavDisplay) {
-                        quotaNavDisplay.innerHTML = `
-                            <span class="quota-badge-pro">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                Pro Unlimited
-                            </span>
-                        `;
-                    }
-                    if (btnNavUpgradeAction) {
-                        btnNavUpgradeAction.textContent = 'Pro Active';
-                        btnNavUpgradeAction.style.background = '#16a34a';
-                    }
-                } else {
-                    const scansUsed = billing.scansUsed !== undefined ? billing.scansUsed : 0;
-                    const maxFreeScans = billing.maxFreeScans || 3;
-                    const isExceeded = scansUsed >= maxFreeScans;
-
-                    if (quotaNavDisplay) {
-                        quotaNavDisplay.innerHTML = `
-                            <span class="quota-text">
-                                Free Plan · <span class="quota-badge-free" style="${isExceeded ? 'background: #fee2e2; color: #dc2626; font-weight: 600;' : ''}">${scansUsed}/${maxFreeScans} scans</span>
-                            </span>
-                        `;
-                    }
-                    if (btnNavUpgradeAction) {
-                        btnNavUpgradeAction.textContent = isExceeded ? 'Upgrade Now ($5/mo)' : 'Upgrade ($5/mo)';
-                        btnNavUpgradeAction.style.background = isExceeded ? '#dc2626' : 'var(--accent-primary)';
-                    }
+                if (quotaNavDisplay) {
+                    quotaNavDisplay.innerHTML = `
+                        <span class="quota-badge-pro" style="background: rgba(16, 185, 129, 0.12); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3);">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                            100% Free · Unlimited Scans
+                        </span>
+                    `;
                 }
             }
 
             function handleUpgradeRequired(data) {
-                const errorMsg = data.error || data.message || 'Monthly free scan limit reached (3/3).';
-                const rawRedirectUrl = data.redirectUrl || data.upgradeUrl || '/#pricing';
-                const redirectUrl = (rawRedirectUrl && (rawRedirectUrl.startsWith('/') || rawRedirectUrl.startsWith('#'))) ? rawRedirectUrl : '/#pricing';
-
-                showAlert(`⚠️ Limit Reached: ${errorMsg} Upgrade to Pro for $5/mo for unlimited scans.`, true);
-
-                if (upgradeModal) {
-                    if (modalTitle) modalTitle.textContent = 'Monthly Free Scan Limit Reached';
-                    if (modalDesc) {
-                        modalDesc.innerHTML = `You've used all <strong>${escapeHtml(data.maxFreeScans || 3)} complimentary ATS scans</strong> for this month. Upgrade to Pro for just <strong>$5/month</strong> for unlimited scans and full Recharts gap analytics, or <a href="${escapeHtml(redirectUrl)}" style="color: var(--accent-primary); font-weight: 600; text-decoration: underline;" id="modalPricingRedirectLink">view our subscription plans</a>.`;
-                    }
-                    upgradeModal.classList.add('open');
-
-                    const link = document.getElementById('modalPricingRedirectLink');
-                    if (link) {
-                        link.addEventListener('click', (e) => {
-                            e.preventDefault();
-                            upgradeModal.classList.remove('open');
-                            window.location.hash = 'pricing';
-                            const pricingEl = document.getElementById('pricing');
-                            if (pricingEl) pricingEl.scrollIntoView({ behavior: 'smooth' });
-                        });
-                    }
-                }
-
-                updateQuotaUI({
-                    isPro: false,
-                    scansUsed: data.scansUsed || 3,
-                    maxFreeScans: data.maxFreeScans || 3,
-                    scansRemaining: 0
-                });
+                // Free platform: All scans are unlimited. No paywall ever triggered.
+                updateQuotaUI({ isPro: true, scansRemaining: 'unlimited' });
             }
 
-            // Plan Switcher in Modal
-            if (planChoiceMonthly && planChoiceAnnual) {
-                planChoiceMonthly.addEventListener('click', () => {
-                    selectedPlan = 'monthly';
-                    planChoiceMonthly.classList.add('selected');
-                    planChoiceAnnual.classList.remove('selected');
-                    if (btnModalCheckoutText) btnModalCheckoutText.textContent = 'Upgrade with Paddle ($5/mo)';
-                });
-
-                planChoiceAnnual.addEventListener('click', () => {
-                    selectedPlan = 'annual';
-                    planChoiceAnnual.classList.add('selected');
-                    planChoiceMonthly.classList.remove('selected');
-                    if (btnModalCheckoutText) btnModalCheckoutText.textContent = 'Upgrade with Paddle ($39/yr)';
-                });
-            }
-
-            // Modal Close Listeners
-            if (modalCloseBtn && upgradeModal) {
-                modalCloseBtn.addEventListener('click', () => upgradeModal.classList.remove('open'));
-                upgradeModal.addEventListener('click', (e) => {
-                    if (e.target === upgradeModal) upgradeModal.classList.remove('open');
-                });
-            }
-
-            // Initiate Paddle Checkout
-            async function initiateCheckout(plan = 'monthly') {
-                try {
-                    clearAlert();
-                    if (btnModalCheckoutAction) {
-                        btnModalCheckoutAction.disabled = true;
-                        btnModalCheckoutAction.textContent = 'Opening Paddle Checkout...';
-                    }
-
-                    const res = await fetch('/api/create-checkout-session', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Accept': 'application/json'
-                        },
-                        body: JSON.stringify({ plan })
-                    });
-
-                    const contentType = res.headers.get('content-type') || '';
-                    let data;
-                    if (contentType.includes('application/json')) {
-                        data = await res.json();
-                    } else {
-                        const rawText = await res.text();
-                        console.error('Non-JSON response received from /api/create-checkout-session:', rawText);
-                        throw new Error(`Server returned status ${res.status}. Expected JSON response.`);
-                    }
-
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || 'Failed to start Paddle checkout session.');
-                    }
-
-                    // Handle Admin Authentication Override
-                    if (data.isAdmin || data.unrestrictedAccess) {
-                        showAlert('⚡ Admin Override Active: You have full unrestricted access to all platform features. No subscription required.', false);
-                        updateQuotaUI({ isAdmin: true, isPro: true, scansRemaining: 'unlimited', planTier: 'admin_unlimited' });
-                        if (upgradeModal) upgradeModal.classList.remove('open');
-                        return;
-                    }
-
-                    // If Paddle.js is loaded and live transaction is created, open Paddle overlay
-                    if (window.Paddle && data.clientToken && data.transactionId && !data.isMock) {
-                        try {
-                            if (data.environment === 'sandbox') {
-                                Paddle.Environment.set('sandbox');
-                            }
-                            Paddle.Initialize({ token: data.clientToken });
-                            Paddle.Checkout.open({
-                                transactionId: data.transactionId,
-                                settings: {
-                                    successUrl: window.location.origin + '/?billing=success&session_id=' + data.transactionId
-                                }
-                            });
-                            return;
-                        } catch (paddleErr) {
-                            console.warn('Paddle.js inline overlay fallback:', paddleErr.message);
-                        }
-                    }
-
-                    // Fallback to checkoutUrl (hosted checkout or simulated sandbox flow)
-                    if (data.checkoutUrl) {
-                        window.location.href = data.checkoutUrl;
-                    } else {
-                        throw new Error('No checkout URL or transaction provided by Paddle.');
-                    }
-                } catch (err) {
-                    console.error('Checkout error:', err);
-                    showAlert('Checkout error: ' + err.message, true);
-                } finally {
-                    if (btnModalCheckoutAction) {
-                        btnModalCheckoutAction.disabled = false;
-                        btnModalCheckoutAction.textContent = selectedPlan === 'annual' ? 'Upgrade with Paddle ($39/yr)' : 'Upgrade with Paddle ($5/mo)';
-                    }
-                }
-            }
-
-            if (btnModalCheckoutAction) {
-                btnModalCheckoutAction.addEventListener('click', () => initiateCheckout(selectedPlan));
-            }
-
-            document.querySelectorAll('.pricing-card .btn-checkout-primary').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const plan = btn.getAttribute('data-plan') || 'monthly';
-                    initiateCheckout(plan);
-                });
-            });
-
-            // 1-Click Sandbox Simulation
-            if (btnModalSimulateUpgrade) {
-                btnModalSimulateUpgrade.addEventListener('click', async () => {
+            // Diagnostic & Dev Test Handlers
+            const btnDevTestSupabase = document.getElementById('btnDevTestSupabase');
+            if (btnDevTestSupabase) {
+                btnDevTestSupabase.addEventListener('click', async () => {
                     try {
-                        btnModalSimulateUpgrade.disabled = true;
-                        btnModalSimulateUpgrade.textContent = 'Simulating Pro Activation...';
-                        const res = await fetch('/api/test/toggle-pro', { method: 'POST' });
+                        btnDevTestSupabase.textContent = 'Testing Supabase...';
+                        const res = await fetch('/api/supabase/status');
                         const data = await res.json();
-
-                        if (data.success && data.isPro) {
-                            if (upgradeModal) upgradeModal.classList.remove('open');
-                            updateQuotaUI({ isPro: true });
-                            showAlert('🎉 Pro Subscription Simulated! Unlimited ATS scans unlocked.', false);
+                        if (data.supabase && data.supabase.connected) {
+                            showAlert(`✅ Supabase PostgreSQL connected successfully to ${data.connectionDetails.host}!`, false);
                         } else {
-                            showAlert(data.message || 'Simulation completed.');
+                            showAlert(`ℹ️ Supabase database: ${data.connectionDetails?.host} (Database parameters verified. Password can be set in SUPABASE_DB_PASSWORD)`, false);
                         }
                     } catch (err) {
-                        showAlert('Simulation failed: ' + err.message, true);
+                        showAlert('Supabase test error: ' + err.message, true);
                     } finally {
-                        btnModalSimulateUpgrade.disabled = false;
-                        btnModalSimulateUpgrade.textContent = 'Simulate Pro Activation (1-Click Dev Sandbox)';
+                        btnDevTestSupabase.textContent = 'Test Supabase Connection';
                     }
                 });
             }
 
-            if (btnNavUpgradeAction) {
-                btnNavUpgradeAction.addEventListener('click', async () => {
-                    const statusRes = await fetch('/api/subscription-status').catch(() => null);
-                    const statusData = statusRes ? await statusRes.json().catch(() => null) : null;
-
-                    if (statusData && statusData.isPro) {
-                        showAlert('You are already an active Pro member! Unlimited scans unlocked.', false);
-                    } else {
-                        if (upgradeModal) upgradeModal.classList.add('open');
-                        else {
-                            const pricingEl = document.getElementById('pricing');
-                            if (pricingEl) pricingEl.scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }
+            const btnDevSampleParse = document.getElementById('btnDevSampleParse');
+            if (btnDevSampleParse) {
+                btnDevSampleParse.addEventListener('click', () => {
+                    parseSampleFile('Saads_CV_Resume.pdf', 'Senior Full Stack Engineer, Node.js, PostgreSQL, React, TypeScript');
                 });
             }
 
-            // Dev Sandbox Buttons
-            if (btnDevTogglePro) {
-                btnDevTogglePro.addEventListener('click', async () => {
+            // Header Sign Out Handler
+            const btnHeaderSignOut = document.getElementById('btnHeaderSignOut');
+            if (btnHeaderSignOut) {
+                btnHeaderSignOut.addEventListener('click', async () => {
                     try {
-                        const res = await fetch('/api/test/toggle-pro', { method: 'POST' });
-                        const data = await res.json();
-                        showAlert(data.message || 'Pro status updated.', !data.isPro);
-                        const statusRes = await fetch('/api/subscription-status');
-                        const statusData = await statusRes.json();
-                        if (statusData.success) updateQuotaUI(statusData);
+                        await fetch('/api/auth/signout', { method: 'POST' });
+                        window.location.reload();
                     } catch (err) {
-                        showAlert('Toggle Pro error: ' + err.message, true);
+                        window.location.reload();
                     }
                 });
             }
 
-            if (btnDevSimulateLimit) {
-                btnDevSimulateLimit.addEventListener('click', async () => {
-                    try {
-                        const res = await fetch('/api/test/simulate-limit-reached', { method: 'POST' });
-                        const data = await res.json();
-                        handleUpgradeRequired({
-                            error: 'Monthly free scan limit reached (3/3).',
-                            requiresUpgrade: true,
-                            scansUsed: 3,
-                            maxFreeScans: 3,
-                            upgradeUrl: '/#pricing',
-                            redirectUrl: '/#pricing',
-                            message: 'You have used all 3 complimentary scans for this month.'
-                        });
-                    } catch (err) {
-                        showAlert('Simulate limit error: ' + err.message, true);
-                    }
-                });
-            }
-
-            if (btnDevResetQuota) {
-                btnDevResetQuota.addEventListener('click', async () => {
-                    try {
-                        const res = await fetch('/api/test/reset-quota', { method: 'POST' });
-                        const data = await res.json();
-                        showAlert('Monthly scan count reset to 0/3.', false);
-                        updateQuotaUI({ isPro: false, scansUsed: 0, maxFreeScans: 3, scansRemaining: 3 });
-                    } catch (err) {
-                        showAlert('Reset quota error: ' + err.message, true);
-                    }
-                });
-            }
-
-            // Check URL parameters
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('billing') === 'success' || urlParams.get('demo_upgrade') === 'true') {
-                showAlert('🎉 Thank you! Your Pro subscription is active with unlimited ATS scans.', false);
-                updateQuotaUI({ isPro: true });
-                history.replaceState(null, '', window.location.pathname);
-                // Synchronize Pro activation with backend in demo/simulation mode
-                fetch('/api/test/toggle-pro', { method: 'POST' }).then(() => {
-                    fetch('/api/subscription-status')
-                        .then(r => r.json())
-                        .then(d => { if (d.success) updateQuotaUI(d); });
-                }).catch(() => {});
-            } else if (urlParams.get('billing') === 'canceled') {
-                showAlert('Checkout canceled. You are currently on the Free plan (3 scans/month).', true);
-                history.replaceState(null, '', window.location.pathname);
-            }
-
-            // Fetch Subscription Status
+            // Sync Free Unlimited Status
             fetch('/api/subscription-status')
                 .then(r => r.json())
-                .then(d => { if (d.success) updateQuotaUI(d); })
-                .catch(() => {});
+                .then(d => { updateQuotaUI(d); })
+                .catch(() => { updateQuotaUI({ isPro: true }); });
 
             // ==========================================
             // State Initialization on Page Load

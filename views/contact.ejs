@@ -283,14 +283,14 @@
 
             <div class="contact-card">
                 <div class="contact-card-title">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-                    Paddle Merchant Billing
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                    Direct Platform Support
                 </div>
                 <div class="contact-card-body">
-                    For charge inquiries, VAT invoices, or order lookup:<br>
-                    <a href="https://paddle.net" target="_blank" rel="noopener noreferrer">Paddle Buyer Support (paddle.net)</a>
+                    For platform questions, account issues, or feature requests:<br>
+                    <a href="mailto:saadalioffic@gmail.com">saadalioffic@gmail.com</a>
                     <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.4rem;">
-                        Instant self-service subscription lookup
+                        100% Free · Prompt Developer Support
                     </div>
                 </div>
             </div>
@@ -311,9 +311,9 @@
                 <label for="contactSubject">Topic / Category</label>
                 <select id="contactSubject" name="subject" required>
                     <option value="general" <%= locals.subject === 'general' ? 'selected' : '' %>>General Question / Feedback</option>
-                    <option value="billing" <%= locals.subject === 'billing' ? 'selected' : '' %>>Billing &amp; Paddle Subscriptions ($5/mo or $39/yr)</option>
-                    <option value="refund" <%= locals.subject === 'refund' ? 'selected' : '' %>>Refund Request (14-day policy)</option>
+                    <option value="account" <%= locals.subject === 'account' ? 'selected' : '' %>>Supabase Account / Sign In</option>
                     <option value="technical" <%= locals.subject === 'technical' ? 'selected' : '' %>>ATS Parsing or Radar Scoring Issue</option>
+                    <option value="feature" <%= locals.subject === 'feature' ? 'selected' : '' %>>Feature Suggestion or Custom Role</option>
                 </select>
             </div>
 

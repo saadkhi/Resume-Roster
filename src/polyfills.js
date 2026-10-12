@@ -1,10 +1,37 @@
+import fs from 'fs';
+import path from 'path';
+
 /**
- * Serverless & Node.js Runtime Polyfills
- *
- * Resolves headless serverless environment issues where DOMMatrix, ImageData,
- * and Path2D are missing from globalThis when pdfjs-dist / pdf-parse loads
- * without native @napi-rs/canvas bindings (e.g. AWS Lambda / Vercel Functions).
+ * Serverless & Node.js Runtime Polyfills & Environment Initializer
  */
+
+// Load .env and .env.local if present
+try {
+  const envFiles = ['.env', '.env.local'];
+  for (const file of envFiles) {
+    const fullPath = path.resolve(process.cwd(), file);
+    if (fs.existsSync(fullPath)) {
+      const content = fs.readFileSync(fullPath, 'utf8');
+      for (const line of content.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        const eqIdx = trimmed.indexOf('=');
+        if (eqIdx > 0) {
+          const key = trimmed.slice(0, eqIdx).trim();
+          let val = trimmed.slice(eqIdx + 1).trim();
+          if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+            val = val.slice(1, -1);
+          }
+          if (key && !process.env[key]) {
+            process.env[key] = val;
+          }
+        }
+      }
+    }
+  }
+} catch (e) {
+  // Ignore in restricted environments
+}
 
 // 1. Suppress benign warning about @napi-rs/canvas in headless environments
 const originalWarn = console.warn;

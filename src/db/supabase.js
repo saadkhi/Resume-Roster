@@ -15,15 +15,17 @@ export const SUPABASE_CONFIG = {
   database: process.env.SUPABASE_DB_NAME || 'postgres',
   user: process.env.SUPABASE_DB_USER || 'postgres',
   password: process.env.SUPABASE_DB_PASSWORD || process.env.DATABASE_PASSWORD || '',
-  supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
-  anonKey: process.env.SUPABASE_ANON_KEY || '',
+  supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
+  anonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_sZf5iUHaHsorwnonRdoC0g_gtthy4-f',
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 };
 
 function getEffectiveConnectionString() {
-  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
-  if (process.env.SUPABASE_DATABASE_URL) return process.env.SUPABASE_DATABASE_URL;
-  if (SUPABASE_CONFIG.password) {
+  const envUrl = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
+  if (envUrl && !envUrl.includes('[YOUR-PASSWORD]')) {
+    return envUrl;
+  }
+  if (SUPABASE_CONFIG.password && SUPABASE_CONFIG.password !== '[YOUR-PASSWORD]') {
     const encodedPassword = encodeURIComponent(SUPABASE_CONFIG.password);
     return `postgresql://${SUPABASE_CONFIG.user}:${encodedPassword}@${SUPABASE_CONFIG.host}:${SUPABASE_CONFIG.port}/${SUPABASE_CONFIG.database}`;
   }
