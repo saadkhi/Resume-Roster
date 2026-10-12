@@ -1,2 +1,180 @@
-# scrabeee
-scraps things which are paid to use
+# Scrabeee
+
+Scrabeee collects technology job listings from configured sources, normalizes
+their fields, filters verifiably old postings, deduplicates repeated source
+records, and stores jobs in SQLite or a configured SQLAlchemy database.
+
+It is a command-line collector, not a web dashboard. It does not claim that
+remote jobs accept candidates in Pakistan unless the source says so.
+
+## Source support and verification
+
+| Source | Integration | Current status |
+| --- | --- | --- |
+| Remote OK | Public JSON feed at `https://remoteok.com/api` | Endpoint was reachable during project setup; adapter reads feed-provided URLs, fields, and dates. Remote OK asks aggregators to credit it and link to original postings; the records retain source name and original URL. |
+| We Work Remotely | Public RSS feed at `https://weworkremotely.com/remote-jobs.rss` | Adapter implemented against the publisher's documented feed. Unit tests use mocked XML. Live parsing is not claimed. |
+| Hacker News hiring thread | Official Firebase API (`askstories.json` and `item/{id}.json`) | Adapter searches the current month's Ask HN posts and only accepts comments with explicit Company and Role/Position labels. Community posts are lower confidence. Unit tests use mocked API responses; no live vacancy extraction is claimed. |
+| LinkedIn, Indeed, Glassdoor, ZipRecruiter, Bayt, Naukri, BDJobs, HelloWork | JobSpy 1.3.0 | Identifiers and calling parameters are advertised in the upstream README and wired through the adapter. Live search success is not verified; board availability, geography, rate limits, and terms may affect results. |
+| Google Jobs | JobSpy | Unavailable: the upstream README says Google Jobs is currently unavailable. Configuration rejects `google`. |
+
+JobSpy's current README says it supports Python 3.10 or newer and documents the
+`scrape_jobs(site_name=..., search_term=..., location=...)` interface. It also
+notes that Indeed and Glassdoor require `country_indeed`; the adapter skips
+those two for remote searches and for locations without a verified country
+mapping rather than sending misleading country settings. JobSpy's own scraping
+may be rate-limited or blocked. No CAPTCHA handling, browser stealth, or access
+control bypass is implemented.
+
+## Architecture
+
+1. `config.py` loads and validates environment configuration.
+2. Source adapters in `scrapers/` fetch independently. The JobSpy adapter runs
+   per configured query/location; public feeds are fetched once per run.
+3. `utils/normalization.py` maps source data into one schema and rejects records
+   without a title, company, and valid URL. Unknown dates remain unknown.
+4. `utils/fingerprints.py` produces stable SHA-256 identities from source,
+   company, title, and canonicalized URL.
+5. `db.py` persists jobs and per-source run metadata using SQLAlchemy. Workers
+   do not write to SQLite; a single persistence stage runs after collection.
+6. `utils/exports.py` writes normalized CSV/JSON data and source health. Logs
+   are emitted as JSON to the console and `output/scraper.log`.
+
+## Requirements and local setup
+
+Python 3.11+ is recommended. The pinned dependencies are in `requirements.txt`;
+the PostgreSQL driver is included for projects that set a PostgreSQL URL.
+
+```bash
+python -m pip install -r requirements.txt
+cp .env.example .env
+python main.py --init-db
+```
+
+Edit `.env` to set the queries, locations, enabled sources, and storage. `.env`
+is ignored by Git. No API keys are required for the configured public feeds.
+
+To run one collection:
+
+```bash
+python main.py
+```
+
+To run tests and lint:
+
+```bash
+pytest
+ruff check .
+ruff format --check .
+```
+
+Tests mock all source HTTP and JobSpy calls; they do not scrape websites.
+
+## Configuration
+
+`SEARCH_QUERIES` and `SEARCH_LOCATIONS` are comma-separated. Defaults include
+technology roles and remote, Pakistan, UK, US, Canada, Germany, Netherlands,
+Italy, UAE, and Saudi Arabia. Set only the searches you want to run. JobSpy's
+result limit applies per configured site and search; actual result counts vary.
+
+Operational variables:
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `JOBSPY_SITES` | `indeed,linkedin` | Verified JobSpy identifiers; Google is rejected as unavailable. |
+| `ENABLED_SOURCES` | Remote OK, WWR, HN | Comma-separated names: `remote_ok,we_work_remotely,hacker_news`. |
+| `MAX_RESULTS_PER_QUERY` | `30` | Requested result cap for each configured JobSpy site/search. |
+| `JOB_MAX_AGE_HOURS` | `1` | Reject dated listings older than this threshold. Undated listings are retained and explicitly not freshness-verified. |
+| `REQUEST_TIMEOUT_SECONDS` | `20` | Timeout for custom-feed HTTP requests. |
+| `MAX_RETRIES` | `3` | Bounded retries for transport, 429, and selected 5xx errors; 403 is not retried. |
+| `BACKOFF_BASE_SECONDS` / `BACKOFF_MAX_SECONDS` | `1` / `30` | Exponential retry delay limits. `Retry-After` is honored up to the configured maximum. |
+| `MAX_CONCURRENT_REQUESTS` | `4` | Bounded outer fetch workers. JobSpy can create its own internal workers. |
+| `MAX_EXECUTION_SECONDS` | `1800` | Collection deadline; network/library calls still have their own timeout behavior. |
+| `HN_MAX_COMMENTS` | `100` | Maximum hiring-thread comments checked per run. |
+| `HN_STORY_SCAN_LIMIT` | `200` | Maximum recent Ask HN stories checked for the current hiring thread. |
+| `DATABASE_URL` | `sqlite:///jobs.db` | SQLAlchemy URL; use a persistent PostgreSQL service for scheduled runs. |
+| `OUTPUT_DIR` | `output` | Directory for exports and logs. |
+| `EXPORT_FORMATS` | `csv,json` | Select `csv`, `json`, or both. |
+| `ENABLE_CSV_EXPORT` / `ENABLE_JSON_EXPORT` | `true` | Disable one output without changing the format list. |
+| `LOG_LEVEL` | `INFO` | Standard Python logging level. |
+| `PROXIES_LIST` | unset | Optional one authorized HTTP(S) proxy. Multiple proxies are rejected; rotation is deliberately not supported. |
+
+`DATABASE_URL` may contain credentials in your local `.env` or a GitHub Actions
+secret. Do not commit credentials or print their values. Query examples and
+locations in `.env.example` are plain text and can be changed without modifying
+the scraper.
+
+### Database, backup, and retention
+
+SQLite is appropriate for local runs and small single-writer deployments:
+
+```text
+DATABASE_URL=sqlite:///jobs.db
+```
+
+Back up `jobs.db` while the collector is not writing to it. Restore by placing
+the backup at the configured database path. The collector creates tables on
+startup; schema changes are not currently versioned with migrations.
+
+GitHub-hosted Actions runners are temporary. The default SQLite database does
+**not** persist to the next scheduled run; artifact uploads are downloadable
+backups, not a database restore mechanism. For meaningful hourly deduplication,
+configure a persistent PostgreSQL `DATABASE_URL` as a repository or
+organization Actions secret. SQLite and PostgreSQL are supported by the ORM,
+but PostgreSQL deployment connectivity has not been verified here.
+
+## Hourly GitHub Actions
+
+`.github/workflows/scraper.yml` runs at the top of every hour and supports
+manual dispatch. To preserve jobs across runs, configure the Actions secret
+`DATABASE_URL` with a persistent PostgreSQL connection string before enabling
+the schedule. Optional repository variables can override `SEARCH_QUERIES`,
+`SEARCH_LOCATIONS`, `JOBSPY_SITES`, and `ENABLED_SOURCES`. Never set credentials
+as repository variables.
+
+Actions schedule start times are approximate and may be delayed by GitHub.
+Runs are serialized, time-limited, and upload logs/exports even on failure.
+Actions run lint and unit tests before collection. The workflow does not commit
+database changes to the repository.
+
+## Exports and source health
+
+- `jobs.db`: local SQLite database when using the default URL.
+- `output/jobs.csv`: UTF-8 BOM CSV with spreadsheet formula cells escaped.
+- `output/jobs.json`: normalized job records, dates in ISO-8601 UTC.
+- `output/source_health.json`: recent per-source run counts and errors.
+- `output/scraper.log`: structured JSON logs for the current process.
+
+`jobs` includes source ID, source, title, company, location, job type, nullable
+remote/workplace flags, original URL, description, optional salary/currency/
+period, posting date, first/last seen and created/updated timestamps, and tags.
+Missing source dates and eligibility are not guessed.
+
+## Troubleshooting and limitations
+
+- A source can return an empty result, be unavailable, or reject automated
+  requests. Check `source_health.json` and `scraper.log`; a failure from one
+  source does not stop results from another.
+- JobSpy's per-site behavior and search coverage can change upstream. Google
+  Jobs is currently unavailable. Indeed/Glassdoor need explicit country context;
+  unsupported location mappings are skipped.
+- Hacker News is a community source. To avoid inventing fields, its adapter
+  only accepts posts with explicit `Company:` and `Role:` (or `Position:`)
+  labels, and links to the exact HN comment. It is not a conventional job board.
+- The public RSS/feed integrations do not establish whether a role accepts
+  applicants in Pakistan. Verify location and work authorization on the original
+  listing.
+- Live tests are intentionally opt-in and are not part of normal CI. The unit
+  suite uses mocked responses; only Remote OK's public endpoint was reachable
+  during implementation research, not a full collection run.
+- No license was present in the import. Choose and add a license before
+  distributing this repository as open source. Contributions should include
+  source-attribution and policy considerations, tests with mocked responses,
+  and documentation of any newly verified integrations.
+
+## Adding a source
+
+Implement the `SourceAdapter` shape in `scrapers/base.py`: a stable `name` and
+`fetch(query, location)` returning normalized source dictionaries plus error
+metadata in `SourceResult`. Add it to `_default_adapters()` in `main.py`, add
+mocked HTTP tests under `tests/`, and document its official interface and
+verification status here. Do not bypass access controls or overstate support.

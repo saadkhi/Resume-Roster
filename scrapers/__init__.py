@@ -1,0 +1,1 @@
+"""Job board source adapters."""
