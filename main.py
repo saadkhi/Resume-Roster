@@ -38,6 +38,8 @@ class SourceStats:
     started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     finished_at: datetime | None = None
     fetched: int = 0
+    successful_tasks: int = 0
+    skipped_tasks: int = 0
     rejected: int = 0
     inserted: int = 0
     updated: int = 0
@@ -47,10 +49,14 @@ class SourceStats:
 
     @property
     def status(self) -> str:
-        if self.errors and self.records:
-            return "partial"
+        if self.successful_tasks:
+            if self.errors:
+                return "partial"
+            return "success"
         if self.errors:
             return "failed"
+        if self.skipped_tasks:
+            return "skipped"
         return "success"
 
 
@@ -64,8 +70,9 @@ class FetchTask:
 
 def _default_adapters(settings: Settings) -> dict[str, Any]:
     adapters: dict[str, Any] = {}
-    if settings.jobspy_sites:
-        adapters["jobspy"] = JobSpySource(settings)
+    for site_name in settings.jobspy_sites:
+        adapter = JobSpySource(settings, site_name)
+        adapters[adapter.name] = adapter
     factories = {
         "remote_ok": RemoteOKSource,
         "we_work_remotely": WeWorkRemotelySource,
@@ -77,13 +84,12 @@ def _default_adapters(settings: Settings) -> dict[str, Any]:
 
 
 def _tasks(settings: Settings, adapters: dict[str, Any]) -> Iterator[FetchTask]:
-    jobspy = adapters.get("jobspy")
-    if jobspy is not None:
-        for query in settings.queries:
-            for location in settings.locations:
-                yield FetchTask("jobspy", jobspy, query, location)
     for source_name, adapter in adapters.items():
-        if source_name != "jobspy":
+        if isinstance(adapter, JobSpySource):
+            for query in settings.queries:
+                for location in settings.locations:
+                    yield FetchTask(source_name, adapter, query, location)
+        else:
             yield FetchTask(source_name, adapter)
 
 
@@ -127,6 +133,10 @@ def _collect(settings: Settings, adapters: dict[str, Any], stats: dict[str, Sour
                     result = future.result()
                     source_stats.fetched += len(result.jobs)
                     source_stats.errors.extend(result.errors)
+                    if result.status == "skipped":
+                        source_stats.skipped_tasks += 1
+                    elif result.status in {"success", "partial"}:
+                        source_stats.successful_tasks += 1
                     if result.jobs:
                         source_stats.records.extend(result.jobs)
                 except Exception as exc:
@@ -234,6 +244,7 @@ def run_pipeline(
             "run_id": run_id,
             "sources_configured": len(stats),
             "sources_successful_or_partial": successful_sources,
+            "sources_skipped": sum(item.status == "skipped" for item in stats.values()),
             "sources_failed": sum(item.status == "failed" for item in stats.values()),
             "raw_listings_fetched": sum(item.fetched for item in stats.values()),
             "valid_listings": sum(len(item.records) for item in stats.values()),

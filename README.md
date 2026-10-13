@@ -9,13 +9,26 @@ remote jobs accept candidates in Pakistan unless the source says so.
 
 ## Source support and verification
 
-| Source | Integration | Current status |
-| --- | --- | --- |
-| Remote OK | Public JSON feed at `https://remoteok.com/api` | Endpoint was reachable during project setup; adapter reads feed-provided URLs, fields, and dates. Remote OK asks aggregators to credit it and link to original postings; the records retain source name and original URL. |
-| We Work Remotely | Public RSS feed at `https://weworkremotely.com/remote-jobs.rss` | Adapter implemented against the publisher's documented feed. Unit tests use mocked XML. Live parsing is not claimed. |
-| Hacker News hiring thread | Official Firebase API (`askstories.json` and `item/{id}.json`) | Adapter searches the current month's Ask HN posts and only accepts comments with explicit Company and Role/Position labels. Community posts are lower confidence. Unit tests use mocked API responses; no live vacancy extraction is claimed. |
-| LinkedIn, Indeed, Glassdoor, ZipRecruiter, Bayt, Naukri, BDJobs, HelloWork | JobSpy 1.3.0 | Identifiers and calling parameters are advertised in the upstream README and wired through the adapter. Live search success is not verified; board availability, geography, rate limits, and terms may affect results. |
-| Google Jobs | JobSpy | Unavailable: the upstream README says Google Jobs is currently unavailable. Configuration rejects `google`. |
+All adapters target Python 3.11 in a local/Replit CLI run or the scheduled
+GitHub Actions workflow. No provider credentials are configured. “Last success”
+means a completed live adapter run, not a successful HTTP request in research;
+none has been recorded yet. Successful run timestamps and errors are written to
+`source_health.json`.
+
+| Source | Availability | Auth and extra configuration | Restrictions and scope | Verification and last success |
+| --- | --- | --- | --- | --- |
+| Remote OK | Implemented; public JSON API | No API key configured for the public endpoint | Attribute Remote OK and link the original posting; source-provided URL is retained | Endpoint response was inspected during setup; adapter has mocked tests only. Last success: none recorded |
+| We Work Remotely | Implemented; publisher RSS feed | No credentials configured | Use the publisher's feed and retain its original posting link | Mocked XML tests; no live adapter run. Last success: none recorded |
+| Hacker News hiring thread | Implemented; official Firebase API | No credentials configured | Checks a bounded set of current-month Ask HN stories/comments; only explicit company and role labels are accepted. Community posts are lower confidence | Mocked API tests; no live vacancy extraction. Last success: none recorded |
+| LinkedIn (`linkedin`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Provider access controls/rate limits may block or restrict automated collection | Package identifier/signature verified; no live search. Last success: none recorded |
+| Indeed (`indeed`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; subject to provider access controls | Adapter parameters and skip behavior covered by tests; no live search. Last success: none recorded |
+| Glassdoor (`glassdoor`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; upstream notes day-level posting-age precision and provider limits | Adapter parameters and skip behavior covered by tests; no live search. Last success: none recorded |
+| ZipRecruiter (`zip_recruiter`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Upstream documents US/Canada coverage; access controls may vary | Package identifier verified; no live search. Last success: none recorded |
+| Bayt (`bayt`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Results depend on the country and listings supported by the provider | Package identifier verified; no live search. Last success: none recorded |
+| BDJobs (`bdjobs`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Bangladesh-focused board; location coverage applies | Package identifier verified; no live search. Last success: none recorded |
+| Naukri (`naukri`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | India-focused board; location coverage applies | Package identifier verified; no live search. Last success: none recorded |
+| HelloWork (`hellowork`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | France-focused; French search terms may be more effective | Package identifier verified; no live search. Last success: none recorded |
+| Google Jobs (`google`) | Disabled | Not configurable | JobSpy's upstream README says Google Jobs is currently unavailable | Rejected during configuration; no run or last-success timestamp |
 
 JobSpy's current README says it supports Python 3.10 or newer and documents the
 `scrape_jobs(site_name=..., search_term=..., location=...)` interface. It also

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import sys
+import types
 from dataclasses import replace
 from datetime import datetime, timezone
 
+import pandas as pd
+
 from db import get_job_count, get_source_runs
-from main import run_pipeline
+from main import _default_adapters, run_pipeline
 from scrapers.base import SourceResult
 
 
@@ -83,6 +87,39 @@ def test_source_failure_does_not_discard_successful_source(settings):
     assert runs["remote_ok"].status == "success"
     assert runs["hacker_news"].status == "failed"
     assert "403 access denied" in runs["hacker_news"].error_summary
+
+
+def test_jobspy_boards_have_independent_run_health(settings, monkeypatch):
+    selected = replace(
+        _small_settings(settings),
+        jobspy_sites=("indeed", "linkedin"),
+        enabled_sources=(),
+    )
+
+    def scrape_jobs(**kwargs):
+        if kwargs["site_name"] == "indeed":
+            raise RuntimeError("board unavailable")
+        return pd.DataFrame(
+            [
+                {
+                    "site": "linkedin",
+                    "title": "Python Engineer",
+                    "company": "Acme",
+                    "job_url": "https://jobs.example/1",
+                    "date_posted": datetime.now(timezone.utc),
+                }
+            ]
+        )
+
+    module = types.ModuleType("jobspy")
+    module.scrape_jobs = scrape_jobs
+    monkeypatch.setitem(sys.modules, "jobspy", module)
+    adapters = _default_adapters(selected)
+    assert run_pipeline(selected, adapters=adapters, run_id="board-health") == 0
+    runs = {row.source_name: row for row in get_source_runs()}
+    assert runs["jobspy:indeed"].status == "failed"
+    assert "board unavailable" in runs["jobspy:indeed"].error_summary
+    assert runs["jobspy:linkedin"].status == "success"
 
 
 def test_database_failure_is_a_systemic_error(settings, monkeypatch):

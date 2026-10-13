@@ -45,10 +45,13 @@ def _to_records(data: Any) -> list[dict[str, Any]]:
 
 
 class JobSpySource:
-    name = "jobspy"
-
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, site_name: str):
         self.settings = settings
+        self.site_name = site_name
+
+    @property
+    def name(self) -> str:
+        return f"jobspy:{self.site_name}"
 
     def fetch(self, query: str | None = None, location: str | None = None) -> SourceResult:
         result = SourceResult(source_name=self.name)
@@ -61,46 +64,36 @@ class JobSpySource:
             from jobspy import scrape_jobs
 
             country = _jobspy_country(location)
-            sites = list(self.settings.jobspy_sites)
-            if country is None:
-                sites = [site for site in sites if site not in {"indeed", "glassdoor"}]
-                if set(self.settings.jobspy_sites) & {"indeed", "glassdoor"}:
-                    result.errors.append(
-                        "Indeed/Glassdoor skipped for this location because JobSpy "
-                        "requires an explicit country_indeed value."
-                    )
-            if not sites:
-                result.status = "failed"
+            if self.site_name in {"indeed", "glassdoor"} and country is None:
+                result.status = "skipped"
                 result.finish()
+                result.status = "skipped"
                 return result
 
-            for site in sites:
-                kwargs: dict[str, Any] = {
-                    "site_name": site,
-                    "search_term": query,
-                    "location": (
-                        "Remote" if location.casefold().startswith("remote") else location
-                    ),
-                    "results_wanted": self.settings.max_results_per_query,
-                    "hours_old": self.settings.job_max_age_hours,
-                    "verbose": 0,
-                    "fetch_description": False,
-                }
-                if location.casefold().startswith("remote"):
-                    kwargs["is_remote"] = True
-                if country and site in {"indeed", "glassdoor"}:
-                    kwargs["country_indeed"] = country
-                if self.settings.proxy_url:
-                    kwargs["proxies"] = [self.settings.proxy_url]
-                try:
-                    raw_jobs = _to_records(scrape_jobs(**kwargs))
-                    result.jobs.extend(raw_jobs)
-                except Exception as exc:
-                    logger.exception(
-                        "JobSpy site search failed",
-                        extra={"query": query, "location": location, "source": site},
-                    )
-                    result.errors.append(f"{site}: {type(exc).__name__}: {exc}")
+            kwargs: dict[str, Any] = {
+                "site_name": self.site_name,
+                "search_term": query,
+                "location": "Remote" if location.casefold().startswith("remote") else location,
+                "results_wanted": self.settings.max_results_per_query,
+                "hours_old": self.settings.job_max_age_hours,
+                "verbose": 0,
+                "fetch_description": False,
+            }
+            if location.casefold().startswith("remote"):
+                kwargs["is_remote"] = True
+            if country and self.site_name in {"indeed", "glassdoor"}:
+                kwargs["country_indeed"] = country
+            if self.settings.proxy_url:
+                kwargs["proxies"] = [self.settings.proxy_url]
+            try:
+                raw_jobs = _to_records(scrape_jobs(**kwargs))
+                result.jobs.extend(raw_jobs)
+            except Exception as exc:
+                logger.exception(
+                    "JobSpy site search failed",
+                    extra={"query": query, "location": location, "source": self.site_name},
+                )
+                result.errors.append(f"{self.site_name}: {type(exc).__name__}: {exc}")
         except ImportError as exc:
             logger.exception("JobSpy dependency unavailable")
             result.errors.append(f"JobSpy dependency unavailable: {exc}")
