@@ -1699,20 +1699,9 @@
 }
 
 /* --- Tab buttons ARIA states -------------------------------- */
-.tab-btn[aria-selected="true"] {
-    background: var(--accent-primary);
-    color: #fff;
-}
 .tab-btn[aria-selected="false"]:focus-visible {
     outline: 3px solid var(--accent-primary);
     outline-offset: 2px;
-}
-/* Tab panels hidden via aria-hidden */
-.tab-pane[aria-hidden="true"] {
-    display: none;
-}
-.tab-pane[aria-hidden="false"] {
-    display: block;
 }
 
 /* --- Dropzone keyboard focus -------------------------------- */
