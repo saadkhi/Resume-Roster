@@ -29,8 +29,8 @@ const initialDbState = {
   users: [
     {
       id: 'usr_admin_saad',
-      email: 'saadalioffic@gmail.com',
-      name: 'Saad Ali (Admin)',
+      email: process.env.ADMIN_EMAIL || 'admin@example.com',
+      name: 'Platform Admin',
       role: 'admin',
       isAdmin: true,
       createdAt: new Date().toISOString()
@@ -453,7 +453,7 @@ export const db = {
         remoteText: jobData.remoteText || (jobData.remote ? 'Remote Allowed' : 'On-Site'),
         employmentType: jobData.employmentType || 'Full-time',
         postedAt: jobData.postedAt || 'Just now',
-        source: jobData.source || 'JobDataLake API',
+        source: jobData.source || 'Sample dataset',
         skills: Array.isArray(jobData.skills) ? jobData.skills : [],
         ...jobData,
         createdAt: new Date().toISOString()

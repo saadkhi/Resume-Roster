@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "node server.js",
     "start": "node server.js",
-    "build": "esbuild src/MatchVisualizer.jsx --bundle --minify --format=iife --outfile=public/match-visualizer.bundle.js && node scripts/create-sample-resumes.js"
+    "build": "esbuild src/MatchVisualizer.jsx --bundle --minify --format=iife --outfile=public/match-visualizer.bundle.js && node scripts/create-sample-resumes.js",
+    "lint": "eslint server.js src/**/*.js api/**/*.js",
+    "test": "node --test tests/unit.test.js"
   },
   "dependencies": {
     "@paddle/paddle-node-sdk": "^3.10.0",
@@ -20,5 +22,11 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "axe-core": "^4.14.0",
+    "eslint": "^9.39.5",
+    "jsdom": "^26.1.0",
+    "react-is": "^19.3.0"
   }
 }

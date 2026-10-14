@@ -25,7 +25,7 @@ export const PLANS = {
 };
 
 export const billingService = {
-  async createCheckoutSession(userId, plan = 'free_unlimited', hostUrl = 'http://localhost:3000') {
+  async createCheckoutSession(userId, _plan = 'free_unlimited', hostUrl = 'http://localhost:3000') {
     return {
       success: true,
       isFree: true,
@@ -43,7 +43,7 @@ export const billingService = {
     };
   },
 
-  async handleWebhookEvent(rawBody, signatureHeader) {
+  async handleWebhookEvent(_rawBody, _signatureHeader) {
     return { received: true, message: 'Platform operates in 100% free mode.' };
   }
 };
@@ -55,10 +55,11 @@ export const billingService = {
 export function checkSubscriptionAndQuota(req, res, next) {
   const admin = isAdminRequest(req);
   const userId = admin ? 'usr_admin_saad' : (req.headers['x-user-id'] || req.cookies?.user_id || 'usr_demo_001');
+  const adminEmail = process.env.ADMIN_EMAIL || '';
 
   let user = admin ? getAdminUser() : db.users.find(userId);
   if (!user) {
-    user = db.users.create({ id: userId, email: admin ? 'saadalioffic@gmail.com' : 'candidate@example.com', name: admin ? 'Saad Ali (Admin)' : 'Candidate' });
+    user = db.users.create({ id: userId, email: admin ? adminEmail : 'candidate@example.com', name: admin ? 'Platform Admin' : 'Candidate' });
   }
 
   req.user = user;

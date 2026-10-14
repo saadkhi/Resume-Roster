@@ -1,6 +1,6 @@
 /**
- * Comprehensive Tech Job Dataset for JobDataLake API & Relational Database Seeding
- * 28 realistic industry positions across all technical verticals
+ * Bundled sample tech job dataset — 28 realistic industry positions across technical verticals.
+ * This is static fixture data; it is not fetched from any external API.
  */
 
 export const INITIAL_JOBS_DATASET = [
@@ -18,7 +18,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$185,000 - $240,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '1 day ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://scale.com/careers',
     skills: ['Python', 'PyTorch', 'TensorFlow', 'Computer Vision', 'Model Optimization', 'Docker', 'REST APIs'],
     description: 'Lead the development and fine-tuning of state-of-the-art vision and multimodal models for enterprise generative applications. You will architect high-throughput inference pipelines, evaluate model latency vs accuracy trade-offs, and deploy resilient microservices in PyTorch and Flask/FastAPI.'
@@ -36,7 +36,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$175,000 - $230,000 / yr',
     experienceLevel: 'Lead / Staff',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://snowflake.com/careers',
     skills: ['Python', 'SQL', 'Scikit-learn', 'Statistics', 'Predictive Modeling', 'Snowpark', 'Feature Engineering'],
     description: 'Design algorithmic models and statistical inference systems to uncover operational insights across Petabyte-scale enterprise workloads. Requires deep experience in mathematical statistics, Python, SQL data transformations, and end-to-end ML lifecycle governance.'
@@ -54,7 +54,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$220,000 - $310,000 / yr',
     experienceLevel: 'Senior / Staff',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://anthropic.com/careers',
     skills: ['PyTorch', 'Computer Vision', 'Deep Learning', 'Neural Networks', 'Python', 'Algorithms', 'GPU Acceleration'],
     description: 'Investigate cutting-edge neural architectures, bio-inspired algorithms, and spiking neuromorphic processors. Partner with core research scientists to benchmark model representations and scale safety-aligned evaluations.'
@@ -72,7 +72,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$240,000 - $335,000 / yr',
     experienceLevel: 'Staff (6+ yrs)',
     postedAt: 'Just now',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://openai.com/careers',
     skills: ['Python', 'PyTorch', 'Transformers', 'RLHF', 'NLP', 'Vector Databases', 'Prompt Engineering'],
     description: 'Architect reinforcement learning from human feedback (RLHF) and direct preference optimization pipelines for multi-turn frontier models. Deploy evaluation harnesses measuring model calibration, safety boundaries, and reasoning capabilities.'
@@ -90,7 +90,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$210,000 - $320,000 / yr',
     experienceLevel: 'Principal (8+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://jobs.netflix.com',
     skills: ['Python', 'A/B Testing', 'Causal Inference', 'Statistics', 'Spark', 'SQL', 'Bayesian Modeling'],
     description: 'Drive methodological innovation for global recommendation A/B testing and algorithmic experiment design. Build Bayesian experimentation engines analyzing viewer retention across 260M+ international subscribers.'
@@ -108,7 +108,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$190,000 - $260,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: '4 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://waymo.com/joinus',
     skills: ['C++', 'Python', 'PyTorch', 'LiDAR', 'Computer Vision', 'Object Detection', 'CUDA', 'Autonomous Systems'],
     description: 'Develop low-latency perception networks detecting dynamic obstacles in challenging weather conditions for autonomous vehicles. Optimize TensorRT models for real-time edge embedded accelerators.'
@@ -128,7 +128,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$205,000 - $275,000 / yr',
     experienceLevel: 'Staff (7+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://stripe.com/jobs',
     skills: ['Java', 'C++', 'Go', 'Distributed Systems', 'Microservices', 'SQL', 'High Availability'],
     description: 'Architect mission-critical payment processing rails handling hundreds of billions in global commerce volume. You will lead cross-system resiliency initiatives, low-latency API contracts, and horizontally scalable transaction ledgers.'
@@ -146,7 +146,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$160,000 - $205,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: 'Just now',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://vercel.com/careers',
     skills: ['TypeScript', 'React', 'Node.js', 'Next.js', 'PostgreSQL', 'Tailwind CSS', 'API Design'],
     description: 'Build developer-first interfaces and edge runtime telemetry tools. You will implement reactive React components, optimized server actions, responsive data dashboards, and real-time streaming architectures.'
@@ -164,7 +164,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$165,000 - $220,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: '1 day ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://linear.app/careers',
     skills: ['Flutter', 'Swift', 'Kotlin', 'iOS', 'Android', 'Mobile UX', 'Local-first Sync'],
     description: 'Craft tactile, sub-50ms mobile experiences for product teams worldwide. Champion local-first sync engines, offline caching, buttery 120fps gesture transitions, and cross-platform native performance.'
@@ -182,7 +182,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$170,000 - $225,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://github.com/about/careers',
     skills: ['Go', 'gRPC', 'Git Internals', 'MySQL', 'Distributed Systems', 'Redis', 'Kafka'],
     description: 'Scale the Git storage replication daemon powering 100M+ developer repositories. Optimize RPC throughput, eliminate lock contention in file metadata indices, and build self-healing storage partitions.'
@@ -200,7 +200,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$180,000 - $240,000 / yr',
     experienceLevel: 'Principal (8+ yrs)',
     postedAt: '5 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://shopify.com/careers',
     skills: ['TypeScript', 'React', 'Design Systems', 'CSS Architecture', 'Accessibility', 'Performance', 'GraphQL'],
     description: 'Direct frontend engineering standards across thousands of merchant checkout workflows. Spearhead component accessibility audits, zero-runtime CSS tokens, and web performance budgets.'
@@ -218,7 +218,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$175,000 - $235,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://cloudflare.com/careers',
     skills: ['Rust', 'Networking', 'WebAssembly', 'Linux Kernel', 'Memory Safety', 'Concurrency', 'HTTP/3'],
     description: 'Implement zero-copy packet parsers and high-speed cryptographic handshakes for the global edge network. Write bare-metal Rust targeting edge WebAssembly runtimes executing millions of requests per second.'
@@ -238,7 +238,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$165,000 - $215,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '4 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://docker.com/careers',
     skills: ['Docker', 'Kubernetes', 'AWS', 'Terraform', 'CI/CD', 'Linux', 'Helm', 'Prometheus'],
     description: 'Scale multi-region container orchestration fabrics, automate infrastructure-as-code deployments using Terraform and Helm, and implement continuous verification pipelines with sub-second feedback loops.'
@@ -256,7 +256,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$210,000 - $280,000 / yr',
     experienceLevel: 'Principal',
     postedAt: '1 week ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://datadoghq.com/careers',
     skills: ['Cloud Architecture', 'AWS', 'Azure', 'Security', 'Kafka', 'Observability', 'Systems Design'],
     description: 'Design global enterprise cloud telemetry platforms ingesting trillions of log events daily. Partner with engineering directors to define multi-cloud networking, zero-trust security postures, and cost-efficient cloud topology.'
@@ -274,7 +274,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$180,000 - $235,000 / yr',
     experienceLevel: 'Lead (6+ yrs)',
     postedAt: '1 day ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://slack.com/careers',
     skills: ['SRE', 'SLO/SLI', 'Kubernetes', 'Python', 'Incident Response', 'Observability', 'Grafana'],
     description: 'Define error budget policies and conduct automated failure-injection experiments to validate messaging reliability across enterprise grids. Lead post-incident retrospectives and automate self-remediating alerts.'
@@ -292,7 +292,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$165,000 - $220,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://hashicorp.com/jobs',
     skills: ['Terraform', 'Vault', 'Consul', 'AWS IAM', 'Policy as Code', 'Go', 'Zero Trust'],
     description: 'Automate secrets management and workload identity federation across dynamic cloud clusters. Author Sentinel policy-as-code guardrails preventing credential leakages across multi-tenant environments.'
@@ -312,7 +312,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$150,000 - $195,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://crowdstrike.com/careers',
     skills: ['Penetration Testing', 'Malware Analysis', 'Network Security', 'SIEM', 'Python', 'Reverse Engineering'],
     description: 'Perform adversary simulation assessments, offensive penetration testing, and forensic malware reverse-engineering. Build defensive automation tools and analyze application security vulnerabilities across cloud native stacks.'
@@ -330,7 +330,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$175,000 - $240,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '1 day ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://coinbase.com/careers',
     skills: ['Application Security', 'Threat Modeling', 'OWASP Top 10', 'Cryptography', 'Smart Contract Auditing', 'Go', 'Python'],
     description: 'Conduct architecture threat modeling for institutional custody cryptographic enclaves. Implement automated SAST/DAST continuous security scans and audit smart contract security invariants before mainnet deployment.'
@@ -348,7 +348,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$165,000 - $215,000 / yr',
     experienceLevel: 'Lead (6+ yrs)',
     postedAt: '4 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://paloaltonetworks.com/careers',
     skills: ['Threat Hunting', 'DFIR', 'Splunk', 'YARA', 'Network Forensics', 'MITRE ATT&CK', 'Incident Response'],
     description: 'Investigate nation-state threat campaigns, extract Indicators of Compromise (IOCs), and write high-fidelity detection rules. Lead tier-3 emergency digital forensics and incident response (DFIR) engagements.'
@@ -368,7 +368,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$160,000 - $210,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '5 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://supabase.com/careers',
     skills: ['PostgreSQL', 'SQL Optimization', 'Oracle', 'High Availability', 'Backup & Recovery', 'Replication', 'Linux'],
     description: 'Ensure extreme reliability and low query latency across hundreds of thousands of managed PostgreSQL database instances. Tune WAL writer parameters, diagnose complex locking queries, and build automated shard rebalancing scripts.'
@@ -386,7 +386,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$195,000 - $265,000 / yr',
     experienceLevel: 'Staff (7+ yrs)',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://mongodb.com/careers',
     skills: ['C++', 'B-Tree & LSM Trees', 'Concurrency', 'Distributed Consensus (Raft)', 'Linux Systems', 'Memory Management'],
     description: 'Architect the core WiredTiger storage engine internals. Minimize lock contention during concurrent write spikes, implement compressed column-store indexing, and enhance distributed crash recovery guarantees.'
@@ -404,7 +404,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$190,000 - $255,000 / yr',
     experienceLevel: 'Staff (6+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://databricks.com/company/careers',
     skills: ['Apache Spark', 'Delta Lake', 'Scala', 'Python', 'Kafka', 'Data Pipelines', 'SQL Optimization'],
     description: 'Build real-time ACID ingestion pipelines handling tens of terabytes hourly. Optimize parquet partitioning, implement streaming join watermarking, and optimize shuffle stages across multi-thousand core Spark clusters.'
@@ -424,7 +424,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$170,000 - $225,000 / yr',
     experienceLevel: 'Lead (5+ yrs)',
     postedAt: '6 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://figma.com/careers',
     skills: ['Agile', 'Scrum', 'Sprint Planning', 'Stakeholder Management', 'Roadmaps', 'Jira', 'Technical Architecture'],
     description: 'Lead cross-functional sprints across frontend rendering, WebAssembly, and collaborative cloud document sync teams. Drive outcome-focused roadmaps, unblock technical dependencies, and elevate team delivery velocity.'
@@ -442,7 +442,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$150,000 - $195,000 / yr',
     experienceLevel: 'Senior (4+ yrs)',
     postedAt: '3 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://cloudflare.com/careers',
     skills: ['Figma', 'UI/UX Design', 'Design Systems', 'CSS Architecture', 'Prototyping', 'Accessibility (WCAG)'],
     description: 'Bridge high-fidelity design engineering with enterprise web security dashboards. Architect scalable Figma component registries, validate user accessibility patterns, and implement pixel-perfect design token systems.'
@@ -460,7 +460,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$225,000 - $315,000 / yr',
     experienceLevel: 'Director (10+ yrs)',
     postedAt: '1 week ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://atlassian.com/company/careers',
     skills: ['Product Strategy', 'Developer Tools', 'P&L Management', 'Cross-functional Leadership', 'SaaS Metrics', 'User Research'],
     description: 'Direct the multi-year product roadmap for Jira and developer workflow automation. Champion developer productivity telemetry, define monetization tiers, and partner with principal engineers on AI-assisted work orchestration.'
@@ -478,7 +478,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$190,000 - $265,000 / yr',
     experienceLevel: 'Principal (8+ yrs)',
     postedAt: '2 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://amazon.jobs',
     skills: ['TPM', 'Program Management', 'Cloud Data Centers', 'Risk Mitigation', 'Executive Communication', 'Capacity Planning'],
     description: 'Drive multi-gigawatt cloud datacenter capacity deployments and fiber interconnect programs worldwide. Coordinate silicon supply chains, firmware qualification schedules, and global power redundancy audits.'
@@ -496,7 +496,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$165,000 - $225,000 / yr',
     experienceLevel: 'Senior (5+ yrs)',
     postedAt: '1 day ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://careers.airbnb.com',
     skills: ['Figma', 'Product Design', 'Micro-Interactions', 'Prototyping', 'User Research', 'Design Systems', 'Mobile Design'],
     description: 'Craft joyful booking journeys and host onboarding experiences. Design dynamic interaction models, author comprehensive design guidelines, and collaborate closely with iOS and Web engineers on production polish.'
@@ -514,7 +514,7 @@ export const INITIAL_JOBS_DATASET = [
     salary: '$155,000 - $205,000 / yr',
     experienceLevel: 'Lead (5+ yrs)',
     postedAt: '4 days ago',
-    source: 'JobDataLake API',
+    source: 'Sample dataset',
     applyUrl: 'https://palantir.com/careers',
     skills: ['Playwright', 'Selenium', 'Python', 'TypeScript', 'Test Automation', 'CI/CD Pipelines', 'Performance Testing'],
     description: 'Architect automated end-to-end regression frameworks and performance benchmarks for Foundry enterprise data platforms. Build parallelized Playwright test runners integrating with continuous deployment gates.'

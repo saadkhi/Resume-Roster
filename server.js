@@ -14,9 +14,10 @@ import { createRequire } from 'module';
 import { db } from './src/db/index.js';
 import { billingService, checkSubscriptionAndQuota } from './src/services/billing.js';
 import { jobsService } from './src/services/jobs.js';
-import { apiLimiter, uploadLimiter, billingLimiter, getSafeErrorMessage, validatePdfMagicBytes, cleanupFile } from './src/middleware/security.js';
+import { apiLimiter, uploadLimiter, getSafeErrorMessage, validatePdfMagicBytes, cleanupFile } from './src/middleware/security.js';
 import {
   isAdminRequest,
+  requireAdminAuth,
   getAdminUser,
   getAdminSubscription,
   isGlobalAdminOverrideActive,
@@ -69,6 +70,9 @@ function resolveResumePath(filename) {
 }
 
 // Multer setup using writable directory (/tmp on Vercel)
+// NOTE: Vercel serverless functions have a 4.5 MB request body limit.
+// Multer limit is set to 4 MB to stay safely under that ceiling.
+const UPLOAD_SIZE_LIMIT_BYTES = 4 * 1024 * 1024; // 4 MB
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, writableUploadsDir);
@@ -82,7 +86,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: 15 * 1024 * 1024,
+    fileSize: UPLOAD_SIZE_LIMIT_BYTES,
     files: 1
   }
 });
@@ -124,7 +128,7 @@ function renderIndexDashboard(req, res, customData = {}) {
     const cookieUserName = req.cookies?.user_name;
     const cookieUserAvatar = req.cookies?.user_avatar;
 
-    const userId = admin ? 'usr_admin_saad' : (cookieUserId || req.headers['x-user-id'] || 'usr_demo_001');
+    const userId = admin ? 'usr_admin_saad' : (cookieUserId || 'usr_demo_001');
     let user = db.users.find(userId);
     if (!user && cookieUserEmail) {
       user = db.users.create({
@@ -138,6 +142,16 @@ function renderIndexDashboard(req, res, customData = {}) {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const usage = db.userUsage.getMonthlyUsage(userId, currentMonth);
 
+    // Determine actual persistence mode so views can show an honest notice.
+    // 'supabase'  — DATABASE_URL / SUPABASE_DB_PASSWORD is configured; durable sync is possible.
+    // 'ephemeral' — no DB credentials; data lives in /tmp and is lost on cold start.
+    const hasDurableDb = !!(
+      process.env.DATABASE_URL ||
+      process.env.SUPABASE_DB_PASSWORD ||
+      process.env.DATABASE_PASSWORD
+    );
+    const persistenceMode = hasDurableDb ? 'supabase' : 'ephemeral';
+
     const templateData = {
       error: null,
       prediction_category: null,
@@ -146,7 +160,8 @@ function renderIndexDashboard(req, res, customData = {}) {
       csv_data: null,
       isDevMode,
       isAdmin: admin,
-      adminEmail: ADMIN_EMAIL,
+      persistenceMode,
+      // adminEmail intentionally omitted — never embed in HTML served to clients
       currentUser: user ? {
         id: user.id,
         email: user.email,
@@ -158,8 +173,8 @@ function renderIndexDashboard(req, res, customData = {}) {
         name: cookieUserName || cookieUserEmail.split('@')[0],
         avatar: cookieUserAvatar || ''
       } : null),
-      supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
-      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder',
+      supabaseUrl: process.env.SUPABASE_URL || '',
+      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
       billing: {
         isAdmin: admin,
         isPro: true,
@@ -281,7 +296,16 @@ app.use((req, res, next) => {
 const publicDir = fs.existsSync(path.join(__dirname, 'public'))
   ? path.join(__dirname, 'public')
   : path.join(process.cwd(), 'public');
-app.use(express.static(publicDir));
+// Serve static assets with long-lived cache headers (content-addressed by build)
+app.use(express.static(publicDir, {
+  maxAge: '7d',
+  setHeaders: (res, filePath) => {
+    // app.css and bundle change on every build — cache 7 days, revalidate
+    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+    }
+  }
+}));
 
 // Gracefully handle browser favicon requests
 app.get(['/favicon.ico', '/favicon.png'], (req, res) => res.status(204).end());
@@ -720,7 +744,7 @@ app.post('/api/parse-resume', uploadLimiter, checkSubscriptionAndQuota, (req, re
     if (err) {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, error: 'File size exceeds 15MB limit. Please upload a smaller PDF.' });
+          return res.status(400).json({ success: false, error: 'File size exceeds 4MB limit. Please upload a smaller PDF.' });
         }
         return res.status(400).json({ success: false, error: getSafeErrorMessage(err, 'File upload error.') });
       }
@@ -825,7 +849,7 @@ const BUNDLED_SAMPLE_FILES = [
   'Saad_Ali_ResumeCV_Old.pdf'
 ];
 
-app.get('/api/sample-resumes', (req, res) => {
+app.get('/api/sample-resumes', apiLimiter, (req, res) => {
   try {
     const samples = BUNDLED_SAMPLE_FILES.map(filename => {
       const filePath = resolveResumePath(filename);
@@ -903,6 +927,14 @@ app.post('/api/evaluate-match', apiLimiter, (req, res) => {
         error: 'Both resumeText and jobDescriptionText are required string values.'
       });
     }
+    // Guard against excessively large payloads that could cause CPU exhaustion in TF-IDF
+    const MAX_TEXT_BYTES = 200_000; // 200 KB per field
+    if (resumeText.length > MAX_TEXT_BYTES || jobDescriptionText.length > MAX_TEXT_BYTES) {
+      return res.status(413).json({
+        success: false,
+        error: 'Text input exceeds maximum allowed size (200 KB per field).'
+      });
+    }
 
     const detailedMetrics = computeDetailedMatchMetrics(resumeText, jobDescriptionText, resumeSections || null);
 
@@ -969,26 +1001,23 @@ app.all('/api/create-portal-session', (req, res) => {
 });
 
 // 8. API: Subscription & Monthly Quota Status (100% Free Forever)
-app.get('/api/subscription-status', (req, res) => {
+app.get('/api/subscription-status', apiLimiter, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
-    const admin = isAdminRequest(req);
-    const userId = admin ? 'usr_admin_saad' : (req.cookies?.user_id || req.headers['x-user-id'] || 'usr_demo_001');
+    // Use only cookie-derived identity (set by /api/auth/sync after Supabase login).
+    // Never echo back ADMIN_EMAIL or grant isAdmin based on spoofable request signals.
+    const userId = req.cookies?.user_id || 'usr_demo_001';
 
     return res.json({
       success: true,
       userId,
-      email: admin ? ADMIN_EMAIL : (req.cookies?.user_email || 'candidate@example.com'),
-      isAdmin: admin,
       isPro: true,
       isFreeForever: true,
       planTier: '100% Free Forever',
       status: 'active',
-      currentPeriodEnd: '2099-12-31T23:59:59.999Z',
       scansUsed: 0,
       maxFreeScans: 'Unlimited',
       scansRemaining: 'unlimited',
-      unrestrictedAccess: true,
       message: 'All ATS resume evaluation tools and visualizations are 100% free with unlimited scans.'
     });
   } catch (err) {
@@ -999,51 +1028,66 @@ app.get('/api/subscription-status', (req, res) => {
 // === Supabase Auth Endpoints (Google, GitHub, Microsoft, Email) ===
 app.get('/auth', (req, res) => {
   renderEjsPage('auth', req, res, {
-    supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder'
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ''
   });
 });
 
 app.get('/auth/callback', (req, res) => {
   renderEjsPage('auth-callback', req, res, {
-    supabaseUrl: process.env.SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder'
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ''
   });
 });
 
-app.post('/api/auth/sync', (req, res) => {
+app.post('/api/auth/sync', apiLimiter, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const { id, email, name, avatar } = req.body || {};
-    if (!email) {
+
+    // Input validation
+    if (!email || typeof email !== 'string') {
       return res.status(400).json({ success: false, error: 'Email is required.' });
     }
+    // Basic email format check — not a full RFC parser but catches obvious garbage
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+      return res.status(400).json({ success: false, error: 'Invalid email address.' });
+    }
+    // Clamp string lengths to prevent oversized payloads hitting the DB
+    const safeEmail = email.trim().toLowerCase().slice(0, 254);
+    const safeName  = typeof name   === 'string' ? name.trim().slice(0, 100)  : safeEmail.split('@')[0];
+    const safeId    = typeof id     === 'string' ? id.trim().slice(0, 64)     : `usr_${Date.now()}`;
+    const safeAvatar= typeof avatar === 'string' ? avatar.trim().slice(0, 512): '';
 
-    const userId = id || `usr_${Date.now()}`;
-    let user = db.users.findByEmail(email);
+    let user = db.users.findByEmail(safeEmail);
     if (!user) {
       user = db.users.create({
-        id: userId,
-        email,
-        name: name || email.split('@')[0],
-        avatar: avatar || '',
-        role: email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user'
+        id: safeId,
+        email: safeEmail,
+        name: safeName,
+        avatar: safeAvatar,
+        role: ADMIN_EMAIL && safeEmail === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user'
       });
     }
 
-    // Set cookie headers for persistent authentication
-    res.cookie('user_id', user.id, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
-    res.cookie('user_email', user.email, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
-    if (user.name) res.cookie('user_name', user.name, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
-    if (avatar) res.cookie('user_avatar', avatar, { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/' });
+    // Cookies are httpOnly:false so the client JS can read them for display,
+    // but they are not used for any security decision on the server — auth
+    // decisions use the Supabase JWT (requireAdminAuth) or these cookies only
+    // for non-privileged identity (isAdminRequest).
+    const cookieOpts = { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/', sameSite: 'lax' };
+    res.cookie('user_id',    user.id,    cookieOpts);
+    res.cookie('user_email', user.email, cookieOpts);
+    if (user.name)   res.cookie('user_name',   user.name,   cookieOpts);
+    if (safeAvatar)  res.cookie('user_avatar', safeAvatar,  cookieOpts);
 
-    return res.json({ success: true, user });
+    // Never return the full user object — omit role/isAdmin to avoid info leak
+    return res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
   } catch (err) {
     return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
   }
 });
 
-app.get('/api/auth/me', (req, res) => {
+app.get('/api/auth/me', apiLimiter, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   const userId = req.cookies?.user_id || req.headers['x-user-id'];
   const user = userId ? db.users.find(userId) : null;
@@ -1061,56 +1105,49 @@ app.get('/api/auth/me', (req, res) => {
 
 app.post('/api/auth/signout', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  res.clearCookie('user_id', { path: '/' });
-  res.clearCookie('user_email', { path: '/' });
-  res.clearCookie('user_name', { path: '/' });
-  res.clearCookie('user_avatar', { path: '/' });
+  res.clearCookie('user_id',     { path: '/', sameSite: 'lax' });
+  res.clearCookie('user_email',  { path: '/', sameSite: 'lax' });
+  res.clearCookie('user_name',   { path: '/', sameSite: 'lax' });
+  res.clearCookie('user_avatar', { path: '/', sameSite: 'lax' });
   return res.json({ success: true, message: 'Signed out successfully.' });
 });
 
-// 8b. API: Admin Status & Override Toggle Endpoints
-app.get('/api/admin/status', (req, res) => {
+// 8b. API: Admin Status & Override Toggle Endpoints (require verified admin JWT)
+app.get('/api/admin/status', requireAdminAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  const admin = isAdminRequest(req);
   return res.json({
     success: true,
-    isAdmin: admin,
+    isAdmin: true,
     globalOverride: isGlobalAdminOverrideActive(),
-    adminEmail: ADMIN_EMAIL,
-    unrestrictedAccess: admin,
-    message: admin ? 'Admin override active. Full platform access enabled.' : 'Admin override inactive.'
+    message: 'Admin authenticated. Override state returned.'
   });
 });
 
-app.post('/api/admin/toggle-override', (req, res) => {
+app.post('/api/admin/toggle-override', requireAdminAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   const currentState = isGlobalAdminOverrideActive();
   const newState = req.body?.enable !== undefined ? !!req.body.enable : !currentState;
   setGlobalAdminOverride(newState);
   return res.json({
     success: true,
-    isAdmin: newState,
     globalOverride: newState,
-    message: newState
-      ? 'Admin authentication override activated. Unrestricted access granted to all features.'
-      : 'Admin authentication override deactivated.'
+    message: newState ? 'Admin override activated.' : 'Admin override deactivated.'
   });
 });
 
-// 8c. API: Supabase PostgreSQL Database Status & Health Check
-app.get('/api/supabase/status', (req, res) => {
+// 8c. API: Supabase PostgreSQL Database Status & Health Check (admin only)
+app.get('/api/supabase/status', requireAdminAuth, (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const status = db.supabase.getStatus();
+    // Return only connectivity metadata — no host/credential details
     return res.json({
       success: true,
-      supabase: status,
-      connectionDetails: {
-        host: 'db.medvnbynodmsjaqvtjzl.supabase.co',
-        port: 5432,
-        database: 'postgres',
-        user: 'postgres',
-        ssl: true
+      supabase: {
+        connected: status.connected,
+        tablesCreated: status.tablesCreated,
+        lastChecked: status.lastChecked,
+        error: status.error || null
       }
     });
   } catch (err) {
@@ -1118,13 +1155,18 @@ app.get('/api/supabase/status', (req, res) => {
   }
 });
 
-app.post('/api/supabase/test', async (req, res) => {
+app.post('/api/supabase/test', requireAdminAuth, apiLimiter, async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const result = await db.supabase.initialize();
     return res.json({
       success: true,
-      supabase: result
+      supabase: {
+        connected: result.connected,
+        tablesCreated: result.tablesCreated,
+        lastChecked: result.lastChecked,
+        error: result.error || null
+      }
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
@@ -1226,7 +1268,7 @@ app.post('/contact', apiLimiter, (req, res) => {
     return renderEjsPage('contact', req, res, {
       submitted: false,
       success: false,
-      error: 'An unexpected error occurred while sending your message. Please email saadalioffic@gmail.com directly.',
+      error: 'An unexpected error occurred while sending your message. Please try again or use the contact details on this page.',
       name: req.body?.name || '',
       email: req.body?.email || '',
       subject: req.body?.subject || 'general',
@@ -1242,7 +1284,7 @@ app.post('/upload', uploadLimiter, (req, res, next) => {
   ])(req, res, err => {
     if (err) {
       const msg = (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE')
-        ? 'File size exceeds 15MB limit. Please upload a smaller PDF.'
+        ? 'File size exceeds 4MB limit. Please upload a smaller PDF.'
         : (isDevMode ? (err.message || 'File upload failed.') : 'File upload failed.');
       return renderIndexDashboard(req, res, { error: msg });
     }

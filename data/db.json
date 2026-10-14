@@ -9,7 +9,7 @@
     },
     {
       "id": "usr_admin_saad",
-      "email": "saadalioffic@gmail.com",
+      "email": "admin@example.com",
       "name": "Saad Ali (Platform Admin)",
       "role": "admin",
       "createdAt": "2026-10-09T22:40:24.128Z"
@@ -951,7 +951,7 @@
     {
       "id": "cnt_1791584360163_99v9g",
       "name": "Saad Ali",
-      "email": "saadalioffic@gmail.com",
+      "email": "admin@example.com",
       "subject": "billing",
       "message": "Testing form submission",
       "status": "received",
@@ -960,7 +960,7 @@
     {
       "id": "cnt_1791584350956_81yia",
       "name": "Saad Ali",
-      "email": "saadalioffic@gmail.com",
+      "email": "admin@example.com",
       "subject": "general",
       "message": "Hello from testing contact form",
       "status": "received",

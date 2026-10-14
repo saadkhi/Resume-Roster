@@ -1,5 +1,7 @@
 node_modules/
 .env
+.env.local
+.env.*.local
 cv_sections.csv
 uploads/*
 !uploads/Saads_CV_Resume.pdf

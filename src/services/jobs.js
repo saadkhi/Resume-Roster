@@ -1,12 +1,14 @@
 /**
- * Job Listings Service with JobDataLake API Integration & Real-Time Resume Match Scoring
+ * Job Listings Service — reads from the bundled sample dataset stored in the
+ * local JSON database. There is no external API call; jobs are static fixture
+ * data seeded from src/db/jobs-data.js.
  */
 import { db } from '../db/index.js';
 
 export const jobsService = {
   /**
-   * Search and filter jobs directly from the database with optional live resume match calculation.
-   * Removes any arbitrary limit: all matching jobs stored in the database are returned.
+   * Search and filter jobs from the bundled sample dataset with optional
+   * resume match score calculation.
    */
   async getJobs({ query = '', category = '', remoteOnly = false, resumeText = '', computeTfidfVector = null, rateResumeSimilarity = null } = {}) {
     // Retrieve all matching jobs directly from the database
@@ -41,7 +43,7 @@ export const jobsService = {
       success: true,
       totalCount: filtered.length,
       jobs: filtered,
-      source: 'JobDataLake API & Career Intelligence Database',
+      source: 'Sample job dataset',
       hasResumeMatch: !!resumeText
     };
   }

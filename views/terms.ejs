@@ -1,165 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Terms of Service - Resume Rater</title>
-    <meta name="description" content="Terms of Service for Resume Rater - automated ATS resume evaluator and career intelligence platform.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg-canvas: #f8fafc;
-            --surface-card: #ffffff;
-            --surface-subtle: #f1f5f9;
-            --border-hairline: #e2e8f0;
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
-            --text-muted: #64748b;
-            --accent-primary: #2563eb;
-            --accent-primary-hover: #1d4ed8;
-            --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-            --layout-max-width: 960px;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            font-family: var(--font-sans);
-            background-color: var(--bg-canvas);
-            color: var(--text-primary);
-            line-height: 1.65;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .header {
-            background: var(--surface-card);
-            border-bottom: 1px solid var(--border-hairline);
-            padding: 1rem 1.5rem;
-            position: sticky;
-            top: 0;
-            z-index: 20;
-        }
-        .header-inner {
-            max-width: var(--layout-max-width);
-            margin: 0 auto;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            text-decoration: none;
-            color: var(--text-primary);
-            font-weight: 800;
-            font-size: 1.1rem;
-        }
-        .brand svg { color: var(--accent-primary); }
-        .nav-back {
-            text-decoration: none;
-            color: var(--accent-primary);
-            font-size: 0.875rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-        .nav-back:hover { text-decoration: underline; }
-        .content-card {
-            max-width: var(--layout-max-width);
-            width: 100%;
-            margin: 2.5rem auto;
-            background: var(--surface-card);
-            border: 1px solid var(--border-hairline);
-            border-radius: 12px;
-            padding: 2.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-            flex: 1;
-        }
-        @media (max-width: 640px) {
-            .content-card { padding: 1.5rem; margin: 1.25rem auto; }
-        }
-        .badge {
-            display: inline-block;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            background: #eff6ff;
-            color: var(--accent-primary);
-            padding: 0.2rem 0.6rem;
-            border-radius: 9999px;
-            margin-bottom: 0.75rem;
-        }
-        h1 {
-            font-size: 2rem;
-            font-weight: 800;
-            letter-spacing: -0.025em;
-            margin-bottom: 0.5rem;
-            color: var(--text-primary);
-        }
-        .meta-date {
-            color: var(--text-muted);
-            font-size: 0.85rem;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-hairline);
-        }
-        h2 {
-            font-size: 1.25rem;
-            font-weight: 700;
-            margin: 1.75rem 0 0.75rem;
-            color: var(--text-primary);
-        }
-        p {
-            color: var(--text-secondary);
-            margin-bottom: 1rem;
-            font-size: 0.95rem;
-        }
-        ul, ol {
-            color: var(--text-secondary);
-            margin-left: 1.5rem;
-            margin-bottom: 1rem;
-            font-size: 0.95rem;
-        }
-        li { margin-bottom: 0.4rem; }
-        .notice-box {
-            background: #f8fafc;
-            border-left: 4px solid var(--accent-primary);
-            padding: 1rem 1.25rem;
-            border-radius: 0 8px 8px 0;
-            margin: 1.5rem 0;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-        .footer {
-            background: var(--surface-card);
-            border-top: 1px solid var(--border-hairline);
-            padding: 1.5rem;
-            font-size: 0.8125rem;
-            color: var(--text-muted);
-            text-align: center;
-        }
-        .footer-links {
-            margin-top: 0.5rem;
-            display: flex;
-            justify-content: center;
-            gap: 1.25rem;
-            flex-wrap: wrap;
-        }
-        .footer-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-        }
-        .footer-links a:hover {
-            color: var(--accent-primary);
-        }
-    </style>
-</head>
-<body>
+<%- include('partials/head', { pageTitle: 'Terms of Service — Resume Rater', includeSupabase: false }) %>
+<%- include('partials/header', { showMainNav: false }) %>
     <header class="header">
         <div class="header-inner">
             <a href="/" class="brand">
@@ -183,20 +23,20 @@
         <div class="meta-date">Last updated: October 9, 2026 &bull; Effective immediately</div>
 
         <div class="notice-box">
-            <strong>Summary:</strong> By accessing or using Resume Rater, you agree to these Terms. Resume Rater is provided as a <strong>100% free and open platform</strong> for job seekers and career professionals with unlimited ATS scans and zero recurring subscription fees.
+            <strong>Summary:</strong> By accessing or using Resume Rater, you agree to these Terms. Resume Rater is provided as a free platform for job seekers and career professionals with no subscription fees.
         </div>
 
         <h2>1. Agreement to Terms</h2>
         <p>These Terms of Service constitute a legally binding agreement between you and Resume Rater ("we", "us", or "our") concerning your access to and use of the Resume Rater web application and evaluation engine located at this site.</p>
 
         <h2>2. Description of Service</h2>
-        <p>Resume Rater provides candidate resume parsing, text vectorization, TF-IDF category prediction, keyword similarity scoring, match radar analytics, and job market exploration tools. All features, visualizations, and section parsing tools are provided completely free of charge with unlimited document scans.</p>
+        <p>Resume Rater provides candidate PDF resume parsing, text vectorization, TF-IDF category prediction, keyword similarity scoring, match radar analytics, and job listing exploration tools. All features are provided free of charge. PDF is the supported upload format; DOCX is not currently supported.</p>
 
         <h2>3. Free Platform & Zero Subscription Fees</h2>
-        <p>Resume Rater does not charge subscription fees, membership fees, or payment processing charges. No credit card or payment information is required to access any platform features. Cloud persistence is powered by Supabase PostgreSQL.</p>
+        <p>Resume Rater does not charge subscription fees, membership fees, or payment processing charges. No credit card or payment information is required to access any platform features. Evaluation history persistence requires a configured Supabase PostgreSQL database connection.</p>
 
         <h2>4. User Accounts and Fair Usage</h2>
-        <p>You agree not to exploit, scrape, reverse-engineer, or subject our resume parsing and evaluation services to automated abuse or denial-of-service attempts. All legitimate job seekers, recruiters, and candidates enjoy unlimited access to our ATS evaluation tools.</p>
+        <p>You agree not to exploit, scrape, reverse-engineer, or subject our resume parsing and evaluation services to automated abuse or denial-of-service attempts. All legitimate job seekers, recruiters, and candidates may use our ATS evaluation tools.</p>
 
         <h2>5. Content and Privacy</h2>
         <p>You retain full ownership of all resume documents, text, and job descriptions uploaded to Resume Rater. We do not sell, rent, or distribute your resume text or personally identifiable candidate information to third-party recruiters or advertising networks. Uploaded files are processed in secure memory and temporary storage solely to generate your match score and extracted sections.</p>
@@ -221,5 +61,6 @@
             <a href="/contact">Contact Us</a>
         </div>
     </footer>
+    <%- include('partials/footer') %>
 </body>
 </html>

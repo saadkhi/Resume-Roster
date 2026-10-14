@@ -1,13 +1,6 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign In & Sign Up - Resume Rater</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<%- include('partials/head', { pageTitle: 'Sign In — Resume Rater', includeSupabase: true }) %>
+<%- include('partials/header', { showMainNav: false }) %>
+
     <style>
         :root {
             --bg-primary: #0f172a;
@@ -314,8 +307,7 @@
             color: var(--text-primary);
         }
     </style>
-</head>
-<body>
+
     <div class="ambient-glow"></div>
 
     <a href="/" class="back-link">
@@ -406,14 +398,14 @@
         </form>
 
         <div class="auth-footer">
-            Protected by Supabase Auth with secure PostgreSQL encryption.
+            Protected by Supabase Auth. Passwords are hashed by Supabase; your resume text is processed server-side.
         </div>
     </div>
 
     <script>
         // Initialize Supabase Client
-        const SUPABASE_URL = '<%= locals.supabaseUrl || "https://medvnbynodmsjaqvtjzl.supabase.co" %>';
-        const SUPABASE_ANON_KEY = '<%= locals.supabaseAnonKey || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.e30.placeholder" %>';
+        const SUPABASE_URL = '<%= locals.supabaseUrl || "" %>';
+        const SUPABASE_ANON_KEY = '<%= locals.supabaseAnonKey || "" %>';
         
         let supabaseClient = null;
         if (window.supabase && SUPABASE_URL) {
@@ -576,5 +568,6 @@
             }
         }
     </script>
+    <%- include('partials/footer') %>
 </body>
 </html>

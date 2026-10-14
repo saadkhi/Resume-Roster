@@ -8,15 +8,15 @@ const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Supabase Connection Configuration provided by user
+// Supabase Connection Configuration — all values from environment only.
 export const SUPABASE_CONFIG = {
-  host: process.env.SUPABASE_DB_HOST || 'db.medvnbynodmsjaqvtjzl.supabase.co',
+  host: process.env.SUPABASE_DB_HOST || '',
   port: parseInt(process.env.SUPABASE_DB_PORT || '5432', 10),
   database: process.env.SUPABASE_DB_NAME || 'postgres',
   user: process.env.SUPABASE_DB_USER || 'postgres',
   password: process.env.SUPABASE_DB_PASSWORD || process.env.DATABASE_PASSWORD || '',
-  supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://medvnbynodmsjaqvtjzl.supabase.co',
-  anonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_sZf5iUHaHsorwnonRdoC0g_gtthy4-f',
+  supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+  anonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '',
   serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY || ''
 };
 
@@ -34,6 +34,7 @@ function getEffectiveConnectionString() {
 
 let poolInstance = null;
 let supabaseClientInstance = null;
+// eslint-disable-next-line prefer-const -- object is mutated in place, not reassigned
 let connectionStatus = {
   connected: false,
   error: null,

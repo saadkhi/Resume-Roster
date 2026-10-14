@@ -1,8 +1,0 @@
-{
-  "name": "Resume Rater",
-  "description": "Resume and Job Description Evaluator that parses resumes, extracts CV sections, predicts category, and rates match similarity against job descriptions.",
-  "permissions": [],
-  "capabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
