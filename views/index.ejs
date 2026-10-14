@@ -29,14 +29,6 @@
             </div>
         </div>
 
-        <!-- Persistence Notice (shown when no durable DB is configured) -->
-        <% if (locals.persistenceMode !== 'supabase') { %>
-        <div style="margin-bottom: 1.25rem; padding: 0.65rem 1rem; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.8125rem; color: #92400e; display: flex; align-items: flex-start; gap: 0.6rem;">
-            <svg style="flex-shrink:0; margin-top:1px;" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
-            <span><strong>Session storage only:</strong> Evaluation results are held in memory for this session. They are not saved between page loads because no database is configured. To enable durable history, set <code>DATABASE_URL</code> in your environment variables (see <code>.env.example</code>).</span>
-        </div>
-        <% } %>
-
         <!-- Split-Pane Workspace -->
         <div class="workspace-grid">
             <!-- Left Panel: Upload & Job Target Specification -->

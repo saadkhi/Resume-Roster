@@ -142,9 +142,7 @@ function renderIndexDashboard(req, res, customData = {}) {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const usage = db.userUsage.getMonthlyUsage(userId, currentMonth);
 
-    // Determine actual persistence mode so views can show an honest notice.
-    // 'supabase'  — DATABASE_URL / SUPABASE_DB_PASSWORD is configured; durable sync is possible.
-    // 'ephemeral' — no DB credentials; data lives in /tmp and is lost on cold start.
+    // Determine persistence mode so the Supabase card badge reflects actual configuration.
     const hasDurableDb = !!(
       process.env.DATABASE_URL ||
       process.env.SUPABASE_DB_PASSWORD ||
