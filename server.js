@@ -12,7 +12,7 @@ import os from 'os';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 import { db } from './src/db/index.js';
-import { billingService, checkSubscriptionAndQuota } from './src/services/billing.js';
+import { checkSubscriptionAndQuota } from './src/services/billing.js';
 import { jobsService } from './src/services/jobs.js';
 import { apiLimiter, uploadLimiter, getSafeErrorMessage, validatePdfMagicBytes, cleanupFile } from './src/middleware/security.js';
 import {
@@ -91,21 +91,6 @@ const upload = multer({
   }
 });
 
-// Paddle Webhook Endpoint (Requires raw JSON buffer for signature verification)
-const handleWebhookRequest = async (req, res) => {
-  const sig = req.headers['paddle-signature'] || req.headers['stripe-signature'];
-  try {
-    const result = await billingService.handleWebhook(req.body, sig);
-    res.json(result);
-  } catch (err) {
-    console.error('Paddle webhook error:', err.message);
-    res.status(400).json({ error: getSafeErrorMessage(err, 'Webhook verification failed.') });
-  }
-};
-app.post('/api/webhooks/paddle', express.raw({ type: 'application/json', limit: '2mb' }), handleWebhookRequest);
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json', limit: '2mb' }), handleWebhookRequest);
-app.post('/api/webhooks', express.raw({ type: 'application/json', limit: '2mb' }), handleWebhookRequest);
-
 app.set('view engine', 'ejs');
 const candidateViewsDirs = [
   path.join(process.cwd(), 'views'),
@@ -114,10 +99,21 @@ const candidateViewsDirs = [
   path.join('/var/task', 'views'),
   path.resolve('views')
 ];
+// Deduplicate by real path — EJS renders includes once per views dir entry,
+// so duplicate paths cause partials to be rendered multiple times.
+const seenViewPaths = new Set();
 const validViewsDirs = candidateViewsDirs.filter(d => {
-  try { return fs.existsSync(d); } catch { return false; }
+  try {
+    if (!fs.existsSync(d)) return false;
+    const real = fs.realpathSync(d);
+    if (seenViewPaths.has(real)) return false;
+    seenViewPaths.add(real);
+    return true;
+  } catch { return false; }
 });
-app.set('views', validViewsDirs.length > 0 ? validViewsDirs : path.join(process.cwd(), 'views'));
+// EJS needs a single string (or deduplicated array with exactly one real path)
+const ejsViewsDir = validViewsDirs[0] || path.join(process.cwd(), 'views');
+app.set('views', ejsViewsDir);
 
 // Resilient template renderer for serverless environments
 function renderIndexDashboard(req, res, customData = {}) {
@@ -209,7 +205,7 @@ function renderIndexDashboard(req, res, customData = {}) {
 
     if (templateContent) {
       const html = ejs.render(templateContent, templateData, {
-        views: validViewsDirs
+        views: [ejsViewsDir]
       });
       return res.send(html);
     }
@@ -254,7 +250,7 @@ function renderEjsPage(viewName, req, res, customData = {}) {
     const templateData = { isDevMode, isAdmin: isAdminRequest(req), ...customData };
 
     if (templateContent) {
-      const html = ejs.render(templateContent, templateData, { views: validViewsDirs });
+      const html = ejs.render(templateContent, templateData, { views: [ejsViewsDir] });
       return res.send(html);
     }
 

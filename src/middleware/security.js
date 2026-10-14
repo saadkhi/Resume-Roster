@@ -35,19 +35,6 @@ export const uploadLimiter = rateLimit({
   }
 });
 
-export const billingLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false, xForwardedForHeader: false },
-  skip: (req) => isAdminRequest(req),
-  handler: (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(429).json({ success: false, error: 'Too many billing requests. Please wait a moment.' });
-  }
-});
-
 export function validatePdfMagicBytes(filePath) {
   try {
     const fd = fs.openSync(filePath, 'r');

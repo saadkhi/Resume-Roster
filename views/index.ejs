@@ -445,21 +445,6 @@ PROJECTS
                 </div>
             </div>
         </div>
-
-
-        <!-- Sandbox / Developer Controls -->
-        <% if (typeof isDevMode !== 'undefined' && isDevMode) { %>
-        <div class="dev-sandbox-bar">
-            <div>
-                <strong>Supabase &amp; System Diagnostics:</strong>
-                <span class="card-caption" style="margin-left: 0.5rem;">Verify PostgreSQL cloud synchronization &amp; sample parsing</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                <button type="button" class="dev-sandbox-btn" id="btnDevTestSupabase">Test Supabase Connection</button>
-                <button type="button" class="dev-sandbox-btn" id="btnDevSampleParse">Quick Sample Parse</button>
-            </div>
-        </div>
-        <% } %>
     </main>
     <%- include('partials/footer') %>
     <script src="/match-visualizer.bundle.js"></script>
@@ -511,21 +496,6 @@ PROJECTS
             const liveMatchDesc = document.getElementById('liveMatchDesc');
             const keywordAlignmentList = document.getElementById('keywordAlignmentList');
 
-            // Modal & Billing Elements
-            const upgradeModal = document.getElementById('upgradeModal');
-            const modalCloseBtn = document.getElementById('modalCloseBtn');
-            const modalTitle = document.getElementById('modalTitle');
-            const modalDesc = document.getElementById('modalDesc');
-            const planChoiceMonthly = document.getElementById('planChoiceMonthly');
-            const planChoiceAnnual = document.getElementById('planChoiceAnnual');
-            const btnModalCheckoutAction = document.getElementById('btnModalCheckoutAction');
-            const btnModalCheckoutText = document.getElementById('btnModalCheckoutText');
-            const btnModalSimulateUpgrade = document.getElementById('btnModalSimulateUpgrade');
-            const btnNavUpgradeAction = document.getElementById('btnNavUpgradeAction');
-            const btnDevTogglePro = document.getElementById('btnDevTogglePro');
-            const btnDevSimulateLimit = document.getElementById('btnDevSimulateLimit');
-            const btnDevResetQuota = document.getElementById('btnDevResetQuota');
-
             // Job Listings Elements
             const jobsSearchInput = document.getElementById('jobsSearchInput');
             const jobsCategoryFilter = document.getElementById('jobsCategoryFilter');
@@ -551,7 +521,7 @@ PROJECTS
 
             let currentFile = null;
             let currentParsedData = null;
-            let selectedPlan = 'monthly';
+            let cachedJobs = [];
 
             function escapeHtml(str) {
                 if (str === null || str === undefined) return '';
@@ -762,12 +732,12 @@ PROJECTS
             function setLoadingState(loading, text = 'Processing...') {
                 if (loading) {
                     if (btnParseResume) btnParseResume.disabled = true;
-                const srAnn = document.getElementById('srAnnouncer');
-                if (srAnn) srAnn.textContent = text;
                     if (btnParseText) btnParseText.textContent = 'Parsing...';
                     if (progressContainer) progressContainer.style.display = 'block';
                     if (progressStepText) progressStepText.textContent = text;
                     if (uploadStatusBadge) uploadStatusBadge.textContent = 'Analyzing';
+                    const srAnn = document.getElementById('srAnnouncer');
+                    if (srAnn) srAnn.textContent = text;
                 } else {
                     if (btnParseResume) btnParseResume.disabled = !currentFile;
                     if (btnParseText) btnParseText.textContent = 'Evaluate & Parse Resume';
@@ -794,7 +764,7 @@ PROJECTS
                 if (resMatchBadge) {
                     resMatchBadge.textContent = rating;
                     resMatchBadge.className = 'status-badge ' + (rating.includes('High') ? 'high' : rating.includes('Medium') ? 'medium' : 'low');
-                if (resMatchBadge) resMatchBadge.setAttribute('aria-label', 'Match rating: ' + rating);
+                    resMatchBadge.setAttribute('aria-label', 'Match rating: ' + rating);
                 }
                 if (resTargetRoleKicker) {
                     resTargetRoleKicker.textContent = `vs. ${data.match?.targetJob || data.category || 'Benchmark'}`;
@@ -833,6 +803,7 @@ PROJECTS
                 // 5. Mount Recharts Component
                 if (window.renderMatchVisualizer) {
                     window.renderMatchVisualizer('recharts-match-container', data);
+                }
                 // Update accessible data table to match radar chart
                 const radarBody = document.getElementById('radarAltTableBody');
                 if (radarBody && data.match && data.match.dimensions) {
@@ -844,7 +815,6 @@ PROJECTS
                         radarTable.setAttribute('aria-label',
                             'Match competency scores for ' + (data.match.targetJob || data.category || 'role'));
                     }
-                }
                 }
 
                 // 6. Sync and rank live Job Listings against this candidate's resume
@@ -911,7 +881,6 @@ PROJECTS
                     if (e.key === 'End')         { next = tabBtns[tabBtns.length - 1]; }
                     if (next) { e.preventDefault(); activateTab(next); next.focus(); }
                 });
-            });
             });
 
             // Top Header Nav Tab Links
@@ -1401,43 +1370,13 @@ PROJECTS
                 });
             }
 
-            // Diagnostic & Dev Test Handlers
-            const btnDevTestSupabase = document.getElementById('btnDevTestSupabase');
-            if (btnDevTestSupabase) {
-                btnDevTestSupabase.addEventListener('click', async () => {
-                    try {
-                        btnDevTestSupabase.textContent = 'Testing Supabase...';
-                        const res = await fetch('/api/supabase/status');
-                        const data = await res.json();
-                        if (data.supabase && data.supabase.connected) {
-                            showAlert(`✅ Supabase PostgreSQL connected successfully to ${data.connectionDetails.host}!`, false);
-                        } else {
-                            showAlert(`ℹ️ Supabase database: ${data.connectionDetails?.host} (Database parameters verified. Password can be set in SUPABASE_DB_PASSWORD)`, false);
-                        }
-                    } catch (err) {
-                        showAlert('Supabase test error: ' + err.message, true);
-                    } finally {
-                        btnDevTestSupabase.textContent = 'Test Supabase Connection';
-                    }
-                });
-            }
-
-            const btnDevSampleParse = document.getElementById('btnDevSampleParse');
-            if (btnDevSampleParse) {
-                btnDevSampleParse.addEventListener('click', () => {
-                    parseSampleFile('Saads_CV_Resume.pdf', 'Senior Full Stack Engineer, Node.js, PostgreSQL, React, TypeScript');
-                });
-            }
-
             // ==========================================
             // State Initialization on Page Load
             // ==========================================
-            // Automatically initialize dashboard with Saad Ali's sample resume
-            // and Data Scientist / Machine Learning benchmark fit on load (preview mode, quota preserved)!
-            window.addEventListener('DOMContentLoaded', () => {
-                fetchAndRenderJobs();
-                parseSampleFile('Saads_CV_Resume.pdf', 'Data Scientist, Machine Learning, Python, SQL, Statistics, Modeling', true);
-            });
+            // DOMContentLoaded has already fired by the time this inline script
+            // runs (script is at end of body). Call directly.
+            fetchAndRenderJobs();
+            parseSampleFile('Saads_CV_Resume.pdf', 'Data Scientist, Machine Learning, Python, SQL, Statistics, Modeling', true);
         })();
     </script>
 </body>
