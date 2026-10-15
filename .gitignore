@@ -9,3 +9,5 @@ cv_sections.csv
 # Only the generated sample resumes are tracked in uploads/
 uploads/*
 !uploads/sample-*.pdf
+
+.vercel
