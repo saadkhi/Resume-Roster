@@ -26,21 +26,11 @@ Nothing is padded or floored to look better: a resume with no matching vocabular
 
 `GET|POST /api/live-jobs` fans out to the job APIs listed under **Jobs** in [saadkhi/public-apis](https://github.com/saadkhi/public-apis), normalises results to one schema, de-duplicates them, and (when a resume is supplied) ranks by match score. Each source is isolated: a slow or failing source is reported in the response and never breaks the page. Results are cached for a few minutes.
 
-| Source | Key needed | Notes |
-|---|---|---|
-| Remote OK | no | Their terms require attribution; every job links back and names the source. |
-| Arbeitnow | no | Europe / remote |
-| The Muse | no | |
-| AI Dev Jobs | no | AI/ML roles |
-| Artificial Intelligence Jobs | no | AI/ML roles |
-| freehire | no | Aggregates company ATS boards |
-| CuratorSearch | no | Museum and gallery jobs |
-| Adzuna | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`; `ADZUNA_COUNTRY` takes one code or a list such as `us,gb,in,ca,au` (max 6; default `us`) | enabled when set; free tier is rate-limited, so the app caps itself at 25 results and 25 requests/minute |
-| Reed | `REED_API_KEY` | enabled when set |
-| Jooble | `JOOBLE_API_KEY` | enabled when set |
-| Findwork | `FINDWORK_API_KEY` | enabled when set |
+**15 keyless sources** are always on: Remote OK, Arbeitnow, The Muse, AI Dev Jobs, Artificial Intelligence Jobs, freehire, CuratorSearch, Remotive, Jobicy, Himalayas, Working Nomads, We Work Remotely, and company boards on Greenhouse, Lever and Ashby (company lists configurable with `GREENHOUSE_BOARDS`, `LEVER_BOARDS`, `ASHBY_BOARDS`).
 
-Not integrated: DevITjobs UK and GraphQL Jobs (endpoints no longer serve a public API), and the commercial/OAuth APIs in that list (Careerjet, Jobs2Careers, Juju, JobsPipe, Techmap, Upwork, Arbeitsamt and similar) which need partner agreements. Adding a source is one entry in `src/services/liveJobs.js`.
+**4 keyed sources** switch on when configured: Adzuna (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `ADZUNA_COUNTRY` as a list), Reed (`REED_API_KEY`), Jooble (`JOOBLE_API_KEY`), Findwork (`FINDWORK_API_KEY`). The app caps its own usage to stay inside the free tiers.
+
+The complete list, with cache times, required details and everything that was considered but not integrated, is in [docs/JOB_SOURCES.md](docs/JOB_SOURCES.md). Adding a source is one entry in `src/services/liveJobs.js`.
 
 ## Privacy model
 

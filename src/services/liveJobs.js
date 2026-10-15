@@ -113,6 +113,45 @@ async function getJson(url, { headers = {}, method = 'GET', body, timeout = ATTE
   throw lastError;
 }
 
+/** Text of the first <tag> in an XML fragment, with CDATA and entities resolved. */
+function xmlText(xml, tag) {
+  const m = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i').exec(xml);
+  if (!m) return '';
+  return m[1].replace(/^\s*<!\[CDATA\[([\s\S]*?)\]\]>\s*$/, '$1')
+    .replace(/&(amp|lt|gt|quot|#39|apos);/g, (e) => ENTITIES[e] || e).trim();
+}
+
+async function getText(url, { timeout = ATTEMPT_TIMEOUT_MS * 2 } = {}) {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': USER_AGENT, Accept: 'application/rss+xml, application/xml, text/xml, */*' },
+    signal: AbortSignal.timeout(timeout),
+    redirect: 'follow'
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
+/** Run `fn` over `items` with at most `limit` in flight; failures are skipped. */
+async function mapLimit(items, limit, fn) {
+  const out = [];
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const item = items[next++];
+      try { out.push(...(await fn(item))); } catch { /* one company failing must not hide the rest */ }
+    }
+  }));
+  return out;
+}
+
+const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/i;
+const titleCase = (slug) => slug.replace(/[-_.]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+function boardSlugs(envName, defaults) {
+  const raw = process.env[envName];
+  const list = raw ? raw.split(/[\s,]+/).filter(x => SLUG_RE.test(x)) : defaults;
+  return [...new Set(list)].slice(0, 25);
+}
+
 /** Every query word must appear somewhere in the job's searchable text. */
 function matchesQuery(job, q) {
   const words = q.toLowerCase().split(/\s+/).filter(w => w.length > 1);
@@ -218,6 +257,127 @@ export const PROVIDERS = [
         id: j.url, title: j.title, company: j.institution, location: j.location, remote: null,
         description: '', url: j.url, postedAt: j.posted, salary: j.salary, tags: [j.category, j.region].filter(Boolean)
       }));
+    }
+  },
+
+  {
+    id: 'remotive', name: 'Remotive', homepage: 'https://remotive.com', feed: true, ttl: 6 * 60 * 60_000,
+    // Remotive asks API users to fetch sparingly; one cached pull every 6 hours.
+    async fetch() {
+      const data = await getJson('https://remotive.com/api/remote-jobs', { timeout: 15_000 });
+      return (data.jobs || []).map(j => normalize('remotive', 'Remotive', {
+        id: j.id, title: j.title, company: j.company_name, location: j.candidate_required_location || 'Remote',
+        remote: true, description: j.description, url: j.url, postedAt: j.publication_date,
+        salary: j.salary, tags: [j.category, j.job_type, ...(j.tags || [])].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'jobicy', name: 'Jobicy', homepage: 'https://jobicy.com', feed: true, ttl: 60 * 60_000,
+    async fetch() {
+      const data = await getJson('https://jobicy.com/api/v2/remote-jobs?count=50');
+      return (data.jobs || []).map(j => normalize('jobicy', 'Jobicy', {
+        id: j.id, title: j.jobTitle, company: j.companyName, location: j.jobGeo || 'Remote', remote: true,
+        description: j.jobDescription || j.jobExcerpt, url: j.url, postedAt: j.pubDate,
+        salary: salaryText(j.salaryMin, j.salaryMax, j.salaryCurrency ? `${j.salaryCurrency} ` : '$'),
+        tags: [...(j.jobIndustry || []), ...(j.jobType || []), j.jobLevel].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'himalayas', name: 'Himalayas', homepage: 'https://himalayas.app',
+    async fetch({ q }) {
+      const url = q
+        ? `https://himalayas.app/jobs/api/search?${new URLSearchParams({ q, limit: '20' })}`
+        : 'https://himalayas.app/jobs/api?limit=20';
+      const data = await getJson(url);
+      return (data.jobs || []).map(j => normalize('himalayas', 'Himalayas', {
+        id: j.guid || j.applicationLink || j.title + j.companyName,
+        title: j.title, company: j.companyName,
+        location: (j.locationRestrictions || []).join(', ') || 'Remote', remote: true,
+        description: j.description || j.excerpt, url: j.applicationLink || j.url || j.guid,
+        postedAt: j.pubDate || j.publishedAt, salary: salaryText(j.minSalary, j.maxSalary, j.currency ? `${j.currency} ` : '$'),
+        tags: [j.employmentType, ...(j.seniority || []), ...(j.categories || []).slice(0, 3)].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'workingnomads', name: 'Working Nomads', homepage: 'https://www.workingnomads.com', feed: true,
+    async fetch() {
+      const data = await getJson('https://www.workingnomads.com/api/exposed_jobs/');
+      return data.map(j => normalize('workingnomads', 'Working Nomads', {
+        id: j.url, title: j.title, company: j.company_name, location: j.location || 'Remote', remote: true,
+        description: j.description, url: j.url, postedAt: j.pub_date,
+        tags: [j.category_name, ...String(j.tags || '').split(',')].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'weworkremotely', name: 'We Work Remotely', homepage: 'https://weworkremotely.com', feed: true,
+    async fetch() {
+      const xml = await getText('https://weworkremotely.com/remote-jobs.rss', { timeout: 15_000 });
+      const items = xml.split('<item>').slice(1, 201);
+      return items.map(item => {
+        const full = xmlText(item, 'title'); // "Company: Job title"
+        const idx = full.indexOf(': ');
+        const link = xmlText(item, 'link') || xmlText(item, 'guid');
+        return normalize('weworkremotely', 'We Work Remotely', {
+          id: xmlText(item, 'guid') || link,
+          title: idx > 0 ? full.slice(idx + 2) : full,
+          company: idx > 0 ? full.slice(0, idx) : '',
+          location: [xmlText(item, 'region'), xmlText(item, 'country')].filter(Boolean).join(', ') || 'Remote',
+          remote: true, description: xmlText(item, 'description'), url: link, postedAt: xmlText(item, 'pubDate'),
+          tags: [xmlText(item, 'category'), xmlText(item, 'type'), ...xmlText(item, 'skills').split(',')]
+            .map(t => t.trim()).filter(Boolean)
+        });
+      });
+    }
+  },
+
+  // Company career boards (public ATS APIs). Override the company lists with
+  // GREENHOUSE_BOARDS / LEVER_BOARDS / ASHBY_BOARDS (comma-separated slugs).
+  {
+    id: 'greenhouse', name: 'Greenhouse boards', homepage: 'https://www.greenhouse.io', feed: true, ttl: 15 * 60_000,
+    async fetch() {
+      const slugs = boardSlugs('GREENHOUSE_BOARDS', ['stripe', 'airbnb', 'discord', 'figma', 'cloudflare', 'gitlab', 'coinbase', 'robinhood', 'instacart', 'dropbox', 'datadog']);
+      return mapLimit(slugs, 4, async (slug) => {
+        const data = await getJson(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`, { timeout: 15_000 });
+        return (data.jobs || []).map(j => normalize('greenhouse', 'Greenhouse boards', {
+          id: `${slug}-${j.id}`, title: j.title, company: j.company_name || slug, location: j.location?.name,
+          remote: /remote/i.test(j.location?.name || '') || null, description: '', url: j.absolute_url,
+          postedAt: j.first_published || j.updated_at, tags: [slug]
+        }));
+      });
+    }
+  },
+  {
+    id: 'lever', name: 'Lever boards', homepage: 'https://www.lever.co', feed: true, ttl: 15 * 60_000,
+    async fetch() {
+      const slugs = boardSlugs('LEVER_BOARDS', ['spotify', 'ro', 'weride']);
+      return mapLimit(slugs, 3, async (slug) => {
+        const data = await getJson(`https://api.lever.co/v0/postings/${slug}?mode=json`, { timeout: 15_000 });
+        return data.map(j => normalize('lever', 'Lever boards', {
+          id: j.id, title: j.text, company: titleCase(slug), location: j.categories?.location,
+          remote: j.workplaceType ? j.workplaceType === 'remote' : null,
+          description: j.descriptionPlain || '', url: j.hostedUrl, postedAt: j.createdAt,
+          tags: [j.categories?.team, j.categories?.commitment].filter(Boolean)
+        }));
+      });
+    }
+  },
+  {
+    id: 'ashby', name: 'Ashby boards', homepage: 'https://www.ashbyhq.com', feed: true, ttl: 15 * 60_000,
+    async fetch() {
+      const slugs = boardSlugs('ASHBY_BOARDS', ['linear', 'cursor', 'sentry', 'notion', 'ramp']);
+      return mapLimit(slugs, 3, async (slug) => {
+        const data = await getJson(`https://api.ashbyhq.com/posting-api/job-board/${slug}`, { timeout: 20_000 });
+        return (data.jobs || []).filter(j => j.isListed !== false).map(j => normalize('ashby', 'Ashby boards', {
+          id: j.id, title: j.title, company: titleCase(slug), location: j.location,
+          remote: typeof j.isRemote === 'boolean' ? j.isRemote : null,
+          description: j.descriptionPlain || j.descriptionHtml || '', url: j.jobUrl || j.applyUrl, postedAt: j.publishedAt,
+          tags: [j.department, j.employmentType].filter(Boolean)
+        }));
+      });
     }
   },
 
@@ -386,7 +546,7 @@ async function runProvider(p, params) {
   try {
     let jobs;
     if (p.feed) {
-      const all = await cached(`feed:${p.id}`, FEED_TTL_MS, () => p.fetch({}).then(list => list.filter(Boolean)));
+      const all = await cached(`feed:${p.id}`, p.ttl || FEED_TTL_MS, () => p.fetch({}).then(list => list.filter(Boolean)));
       jobs = all;
     } else {
       const term = params.q || params.seed || '';

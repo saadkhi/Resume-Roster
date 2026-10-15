@@ -122,6 +122,67 @@ describe('fetchLiveJobs', () => {
   });
 });
 
+describe('new keyless sources', () => {
+  it('parses We Work Remotely RSS (CDATA, entities, company prefix)', async () => {
+    const rss = '<?xml version="1.0"?><rss><channel><item>' +
+      '<title><![CDATA[Acme Corp: Senior Python Engineer]]></title>' +
+      '<region>Anywhere in the World</region><type>Full-Time</type><skills>Python, SQL</skills>' +
+      '<category>Programming</category>' +
+      '<description>&lt;p&gt;Build &lt;b&gt;things&lt;/b&gt; &amp;amp; ship&lt;/p&gt;</description>' +
+      '<pubDate>Wed, 14 Oct 2026 10:00:00 +0000</pubDate>' +
+      '<link>https://weworkremotely.com/remote-jobs/acme-python</link><guid>https://weworkremotely.com/remote-jobs/acme-python</guid>' +
+      '</item></channel></rss>';
+    behaviour = { 'weworkremotely.com': () => new Response(rss, { status: 200, headers: { 'Content-Type': 'application/rss+xml' } }) };
+    const r = await fetchLiveJobs({ sources: ['weworkremotely'] });
+    assert.equal(r.total, 1);
+    const j = r.jobs[0];
+    assert.equal(j.title, 'Senior Python Engineer');
+    assert.equal(j.company, 'Acme Corp');
+    assert.equal(j.summary, 'Build things & ship');
+    assert.equal(j.remote, true);
+    assert.deepEqual(j.tags.slice(0, 3), ['Programming', 'Full-Time', 'Python']);
+  });
+
+  it('pulls company boards from Greenhouse, Lever and Ashby and tolerates a failing company', async () => {
+    process.env.GREENHOUSE_BOARDS = 'acme, broken';
+    process.env.LEVER_BOARDS = 'globex-corp';
+    process.env.ASHBY_BOARDS = 'initech';
+    try {
+      behaviour = {
+        'boards/acme/jobs': () => json({ jobs: [{ id: 1, title: 'Backend Engineer', company_name: 'Acme', location: { name: 'Remote - US' }, absolute_url: 'https://boards.greenhouse.io/acme/jobs/1', first_published: '2026-10-10T00:00:00Z' }] }),
+        'boards/broken/jobs': () => json({}, 500),
+        'postings/globex-corp': () => json([{ id: 'l1', text: 'Data Analyst', categories: { location: 'Berlin', team: 'Data' }, hostedUrl: 'https://jobs.lever.co/globex-corp/l1', createdAt: 1792000000000, descriptionPlain: 'SQL and dashboards' }]),
+        'job-board/initech': () => json({ jobs: [{ id: 'a1', title: 'Designer', location: 'Paris', isRemote: false, jobUrl: 'https://jobs.ashbyhq.com/initech/a1', publishedAt: '2026-10-12T00:00:00Z', department: 'Design' }] })
+      };
+      const r = await fetchLiveJobs({ sources: ['greenhouse', 'lever', 'ashby'] });
+      const byId = Object.fromEntries(r.sources.map(s => [s.id, s]));
+      assert.equal(byId.greenhouse.status, 'ok');
+      assert.equal(byId.lever.count, 1);
+      assert.equal(byId.ashby.count, 1);
+      const titles = r.jobs.map(j => j.title).sort();
+      assert.deepEqual(titles, ['Backend Engineer', 'Data Analyst', 'Designer']);
+      assert.equal(r.jobs.find(j => j.source === 'lever').company, 'Globex Corp');
+      assert.equal(r.jobs.find(j => j.source === 'greenhouse').remote, true);
+    } finally {
+      delete process.env.GREENHOUSE_BOARDS;
+      delete process.env.LEVER_BOARDS;
+      delete process.env.ASHBY_BOARDS;
+    }
+  });
+
+  it('rejects unsafe board slugs', async () => {
+    process.env.GREENHOUSE_BOARDS = '../etc/passwd, good-co';
+    try {
+      behaviour = { 'boards/good-co/jobs': () => json({ jobs: [] }) };
+      await fetchLiveJobs({ sources: ['greenhouse'] });
+      assert.ok(calls.every(c => !c.includes('passwd')));
+      assert.ok(calls.some(c => c.includes('boards/good-co/jobs')));
+    } finally {
+      delete process.env.GREENHOUSE_BOARDS;
+    }
+  });
+});
+
 describe('keyed sources', () => {
   it('Adzuna never asks for more than 25 results and never exceeds 25 requests a minute', async () => {
     process.env.ADZUNA_APP_ID = 'id';
@@ -155,7 +216,10 @@ describe('keyed sources', () => {
 describe('providers', () => {
   it('covers the keyless public-apis job sources and gates keyed ones', () => {
     const keyless = PROVIDERS.filter(p => !p.envKeys).map(p => p.id).sort();
-    assert.deepEqual(keyless, ['aidevboard', 'aijobs', 'arbeitnow', 'curatorsearch', 'freehire', 'remoteok', 'themuse']);
+    assert.deepEqual(keyless, [
+      'aidevboard', 'aijobs', 'arbeitnow', 'ashby', 'curatorsearch', 'freehire', 'greenhouse', 'himalayas',
+      'jobicy', 'lever', 'remoteok', 'remotive', 'themuse', 'weworkremotely', 'workingnomads'
+    ]);
     const keyed = PROVIDERS.filter(p => p.envKeys);
     assert.ok(keyed.length >= 4);
     for (const p of keyed) assert.equal(providerEnabled(p), false);
