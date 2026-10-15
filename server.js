@@ -6,7 +6,7 @@ import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { db } from './src/db/index.js';
-import { jobsService } from './src/services/jobs.js';
+import { fetchLiveJobs } from './src/services/liveJobs.js';
 import { scoreMatch, atsChecks } from './src/services/nlp.js';
 import { analyzeResume, UnreadablePdfError } from './src/services/resumeParser.js';
 import { hashPassword, verifyPassword, dummyVerify } from './src/services/passwords.js';
@@ -247,19 +247,26 @@ app.post('/api/evaluate-match', apiLimiter, (req, res) => {
   return ok(res, { ...match, checks, suggestions });
 });
 
-const handleJobs = (req, res) => {
+// Live postings aggregated from the public job APIs (see src/services/liveJobs.js).
+const handleLiveJobs = async (req, res) => {
   const src = req.method === 'GET' ? req.query : (req.body || {});
-  const resumeText = typeof src.resumeText === 'string' ? src.resumeText.slice(0, MAX_MATCH_TEXT_CHARS) : '';
-  const result = jobsService.getJobs({
-    query: String(src.query || '').slice(0, 100),
-    category: String(src.category || '').slice(0, 60),
-    remoteOnly: src.remote === true || src.remote === 'true',
-    resumeText
-  });
-  return res.json(result);
+  const sources = Array.isArray(src.sources) ? src.sources : String(src.sources || '').split(',');
+  try {
+    const result = await fetchLiveJobs({
+      query: String(src.query || '').slice(0, 100),
+      remote: src.remote === true || src.remote === 'true',
+      sources: sources.map(s => String(s).trim()).filter(Boolean).slice(0, 20),
+      resumeText: typeof src.resumeText === 'string' ? src.resumeText.slice(0, MAX_MATCH_TEXT_CHARS) : ''
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(result);
+  } catch (err) {
+    console.error('Live jobs failed:', err.message);
+    return fail(res, 502, 'Could not load job listings right now. Please try again.');
+  }
 };
-app.get('/api/jobs', apiLimiter, handleJobs);
-app.post('/api/jobs', apiLimiter, handleJobs);
+app.get('/api/live-jobs', apiLimiter, handleLiveJobs);
+app.post('/api/live-jobs', apiLimiter, handleLiveJobs);
 
 // ── Auth API ────────────────────────────────────────────────────────────────
 // Accounts are email + password (scrypt hashes in Postgres). On success the

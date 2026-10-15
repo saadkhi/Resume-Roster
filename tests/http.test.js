@@ -211,13 +211,25 @@ describe('matching API', () => {
     assert.equal((await postJson('/api/evaluate-match', { resumeText: '' })).status, 400);
   });
 
-  it('ranks sample roles against a resume and exposes no apply links', async () => {
-    const res = await postJson('/api/jobs', {
-      resumeText: 'Python PyTorch TensorFlow machine learning computer vision Docker REST APIs'
-    });
-    const body = await res.json();
-    assert.equal(body.hasResumeMatch, true);
-    assert.ok(body.jobs[0].matchPercentage >= body.jobs[body.jobs.length - 1].matchPercentage);
-    assert.equal(body.jobs[0].applyUrl, undefined);
+  it('serves live jobs through the aggregator without exposing raw descriptions', async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (url, init) => String(url).startsWith(base)
+      ? realFetch(url, init)
+      : Promise.resolve(new Response(JSON.stringify(
+        String(url).includes('remoteok.com')
+          ? [{ legal: 'x' }, { id: '9', position: 'Python Engineer', company: 'Acme', description: '<b>python</b>', url: 'https://remoteok.com/9', date: '2026-10-14T00:00:00Z' }]
+          : {}
+      ), { status: String(url).includes('remoteok.com') ? 200 : 404 }));
+    try {
+      const res = await postJson('/api/live-jobs', { query: 'python', sources: ['remoteok'], resumeText: 'Python developer SQL' });
+      const body = await res.json();
+      assert.equal(res.status, 200);
+      assert.equal(body.hasResumeMatch, true);
+      assert.equal(body.jobs[0].title, 'Python Engineer');
+      assert.equal('description' in body.jobs[0], false);
+      assert.equal(body.sources[0].status, 'ok');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
 });

@@ -3,7 +3,7 @@ import js from '@eslint/js';
 const nodeGlobals = {
   process: 'readonly', console: 'readonly', Buffer: 'readonly', URL: 'readonly', URLSearchParams: 'readonly',
   fetch: 'readonly', FormData: 'readonly', Blob: 'readonly', setTimeout: 'readonly', clearTimeout: 'readonly',
-  globalThis: 'readonly', __dirname: 'readonly', Uint8Array: 'readonly'
+  globalThis: 'readonly', __dirname: 'readonly', Uint8Array: 'readonly', AbortSignal: 'readonly', Response: 'readonly'
 };
 
 const browserGlobals = {

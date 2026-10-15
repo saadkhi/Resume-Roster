@@ -129,7 +129,6 @@
                         <button class="tab" role="tab" id="tab-radar-btn" aria-selected="false" aria-controls="tab-radar" data-tab="tab-radar" tabindex="-1">Skill radar</button>
                         <button class="tab" role="tab" id="tab-sections-btn" aria-selected="false" aria-controls="tab-sections" data-tab="tab-sections" tabindex="-1">Resume sections</button>
                         <button class="tab" role="tab" id="tab-matcher-btn" aria-selected="false" aria-controls="tab-matcher" data-tab="tab-matcher" tabindex="-1">Try another job</button>
-                        <button class="tab" role="tab" id="tab-jobs-btn" aria-selected="false" aria-controls="tab-jobs" data-tab="tab-jobs" tabindex="-1">Sample roles</button>
                         <button class="tab" role="tab" id="tab-text-btn" aria-selected="false" aria-controls="tab-text" data-tab="tab-text" tabindex="-1">Extracted text</button>
                     </div>
 
@@ -181,29 +180,6 @@
                         <button type="button" class="btn btn-primary" id="btnMatch" style="margin-top:1rem">Score against this job</button>
                     </div>
 
-                    <!-- Sample roles -->
-                    <div class="tabpanel" role="tabpanel" id="tab-jobs" aria-labelledby="tab-jobs-btn" hidden>
-                        <div class="alert alert-info sample-note" style="margin-top:0">These are fictional example roles bundled with the app so you can see how matching works. They are not live job openings.</div>
-                        <div class="toolbar" style="margin-top:1rem">
-                            <label class="sr-only" for="jobsQuery">Search roles</label>
-                            <input id="jobsQuery" class="input" type="search" placeholder="Search by title, company or skill">
-                            <label class="sr-only" for="jobsCategory">Category</label>
-                            <select id="jobsCategory" class="select" style="min-width:180px">
-                                <option value="">All categories</option>
-                                <option>Data Science &amp; AI</option>
-                                <option>Software Engineering</option>
-                                <option>DevOps &amp; Cloud</option>
-                                <option>Cybersecurity</option>
-                                <option>Database &amp; Systems</option>
-                                <option>Product &amp; Management</option>
-                            </select>
-                            <label class="toggle"><input type="checkbox" id="jobsRemote"> Remote only</label>
-                        </div>
-                        <p class="small muted" id="jobsStatus" style="margin-top:0.75rem"></p>
-                        <div class="jobs-list" id="jobsList" aria-live="polite"></div>
-                        <button type="button" class="btn btn-secondary btn-block" id="btnMoreJobs" style="margin-top:1rem" hidden>Show more</button>
-                    </div>
-
                     <!-- Extracted text -->
                     <div class="tabpanel" role="tabpanel" id="tab-text" aria-labelledby="tab-text-btn" hidden>
                         <div class="viewer">
@@ -215,6 +191,28 @@
             </div>
         </div>
     </div>
+
+    <section class="live-jobs" id="live-jobs" aria-labelledby="liveJobsTitle">
+        <div class="live-head">
+            <div>
+                <h2 id="liveJobsTitle">Live job openings</h2>
+                <p class="muted small" id="liveJobsLead">Fresh postings pulled from several public job boards. Analyze a resume above to rank them by how well you match.</p>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLive">Refresh</button>
+        </div>
+
+        <form class="live-toolbar" id="liveForm" role="search">
+            <label class="sr-only" for="liveQuery">Search jobs</label>
+            <input id="liveQuery" class="input" type="search" maxlength="100" placeholder="Search title, skill or company, e.g. python, data analyst">
+            <label class="toggle"><input type="checkbox" id="liveRemote"> Remote only</label>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+
+        <div class="source-chips" id="sourceChips" aria-label="Job sources"></div>
+        <p class="small muted" id="liveStatus" role="status" aria-live="polite"></p>
+        <div class="jobs-list" id="liveList"></div>
+        <button type="button" class="btn btn-secondary btn-block" id="btnMoreLive" style="margin-top:1rem" hidden>Show more</button>
+    </section>
 </main>
 
 <%- include('partials/footer') %>

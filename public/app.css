@@ -384,3 +384,20 @@ main { flex: 1 0 auto; padding: 2rem 0 4rem; }
 @media (max-width: 980px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ── Live jobs ──────────────────────────────────────────────────────── */
+.live-jobs { margin-top: 3rem; scroll-margin-top: 80px; }
+.live-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.live-head h2 { font-size: 1.4rem; }
+.live-toolbar { display: grid; grid-template-columns: 1fr auto auto; gap: 0.6rem; align-items: center; margin-top: 1rem; }
+.source-chips { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.9rem; }
+.source-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; font-weight: 600; padding: 0.2rem 0.65rem; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); text-decoration: none; }
+.source-chip.ok::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
+.source-chip.error::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+.source-chip.off { opacity: 0.6; }
+.job-source { font-size: 0.78rem; color: var(--text-3); margin-top: 0.6rem; }
+.job-source a { color: var(--text-2); }
+.live-jobs .jobs-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.skeleton-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem; display: grid; gap: 0.6rem; }
+@media (max-width: 900px) { .live-jobs .jobs-list { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .live-toolbar { grid-template-columns: 1fr; } .live-head { flex-direction: column; } }

@@ -11,7 +11,6 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { INITIAL_JOBS_DATASET } from './jobs-data.js';
 import { isConfigured, ready, query, getStatus } from './postgres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -190,24 +189,6 @@ export const db = {
         saveLocal();
       }
       return record;
-    }
-  },
-
-  jobs: {
-    list({ query: q = '', category = '', remoteOnly = false } = {}) {
-      let jobs = [...INITIAL_JOBS_DATASET];
-      const needle = String(q || '').toLowerCase().trim();
-      if (needle) {
-        jobs = jobs.filter(j =>
-          j.title.toLowerCase().includes(needle) ||
-          j.company.toLowerCase().includes(needle) ||
-          j.description.toLowerCase().includes(needle) ||
-          (j.skills || []).some(s => s.toLowerCase().includes(needle)));
-      }
-      const cat = String(category || '').toLowerCase().trim();
-      if (cat && cat !== 'all') jobs = jobs.filter(j => (j.category || '').toLowerCase().includes(cat));
-      if (remoteOnly === true || remoteOnly === 'true') jobs = jobs.filter(j => j.remote === true);
-      return jobs;
     }
   },
 

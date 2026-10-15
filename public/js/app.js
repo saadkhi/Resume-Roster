@@ -5,7 +5,7 @@
 
   var cfg = (window.RR && window.RR.config) || {};
   var MAX_BYTES = 4 * 1024 * 1024;
-  var JOBS_PAGE = 8;
+  var JOBS_PAGE = 10;
 
   var $ = function (id) { return document.getElementById(id); };
   var el = {
@@ -22,14 +22,15 @@
     suggestionList: $('suggestionList'), checkList: $('checkList'),
     dimBody: $('dimBody'), radarIntro: $('radarIntro'), sectionsGrid: $('sectionsGrid'),
     matchPreset: $('matchPreset'), matchJd: $('matchJd'), btnMatch: $('btnMatch'),
-    jobsQuery: $('jobsQuery'), jobsCategory: $('jobsCategory'), jobsRemote: $('jobsRemote'),
-    jobsStatus: $('jobsStatus'), jobsList: $('jobsList'), btnMoreJobs: $('btnMoreJobs'),
+    liveForm: $('liveForm'), liveQuery: $('liveQuery'), liveRemote: $('liveRemote'),
+    liveStatus: $('liveStatus'), liveList: $('liveList'), btnMoreLive: $('btnMoreLive'),
+    btnRefreshLive: $('btnRefreshLive'), sourceChips: $('sourceChips'), liveLead: $('liveJobsLead'),
     rawText: $('rawText'), btnCopyText: $('btnCopyText'),
     historyCard: $('historyCard'), historyList: $('historyList'), historyNote: $('historyNote'),
     btnDeleteHistory: $('btnDeleteHistory')
   };
 
-  var state = { file: null, sample: null, result: null, jobs: [], jobsShown: JOBS_PAGE, busy: false };
+  var state = { file: null, sample: null, result: null, jobs: [], jobsShown: JOBS_PAGE, busy: false, liveToken: 0 };
 
   /* ── helpers ──────────────────────────────────────────────────────── */
   function h(tag, attrs, children) {
@@ -207,7 +208,7 @@
     el.factCategory.textContent = r.category === 'Uncertain' ? 'Not enough signal' : r.category;
     el.factLength.textContent = r.stats.wordCount.toLocaleString() + ' words · ' + r.pages + (r.pages === 1 ? ' page' : ' pages');
     activateTab('tab-overview', false);
-    loadJobs();
+    loadLiveJobs();
   }
 
   function renderSummary() {
@@ -367,81 +368,146 @@
     matchAgainst(text);
   });
 
-  /* ── sample roles ─────────────────────────────────────────────────── */
-  var jobsTimer = null;
-  function loadJobs() {
-    el.jobsStatus.textContent = 'Loading sample roles…';
-    api('/api/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: el.jobsQuery.value.trim(),
-        category: el.jobsCategory.value,
-        remote: el.jobsRemote.checked,
-        resumeText: state.result ? state.result.rawText : ''
-      })
-    }).then(function (data) {
-      state.jobs = data.jobs || [];
-      state.jobsShown = JOBS_PAGE;
-      renderJobs(data.hasResumeMatch);
-    }).catch(function (err) {
-      el.jobsStatus.textContent = err.message;
+  /* ── live jobs ────────────────────────────────────────────────────── */
+  function relativeTime(iso) {
+    if (!iso) return '';
+    var days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+    if (days < 0 || isNaN(days)) return '';
+    if (days === 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 30) return days + ' days ago';
+    return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function renderSources(sources) {
+    clear(el.sourceChips);
+    sources.forEach(function (s) {
+      var label = s.status === 'ok' ? s.name + ' · ' + s.count : s.name + ' · unavailable';
+      var chip = h('a', {
+        class: 'source-chip ' + (s.status === 'ok' ? 'ok' : 'error'),
+        href: s.homepage, target: '_blank', rel: 'noopener noreferrer',
+        title: s.status === 'ok' ? 'Loaded in ' + s.ms + ' ms' : 'Could not load: ' + (s.error || 'error')
+      });
+      chip.textContent = label;
+      el.sourceChips.appendChild(chip);
     });
   }
 
-  function renderJobs(ranked) {
-    clear(el.jobsList);
+  function loadLiveJobs() {
+    var token = ++state.liveToken;
+    el.liveStatus.textContent = 'Loading jobs from the job boards…';
+    clear(el.liveList);
+    for (var i = 0; i < 4; i++) {
+      el.liveList.appendChild(h('div', { class: 'skeleton-card', 'aria-hidden': 'true' }, [
+        h('div', { class: 'skeleton', style: 'width:70%' }),
+        h('div', { class: 'skeleton', style: 'width:40%' }),
+        h('div', { class: 'skeleton', style: 'width:90%' })
+      ]));
+    }
+    el.btnMoreLive.hidden = true;
+    el.btnRefreshLive.disabled = true;
+
+    api('/api/live-jobs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: el.liveQuery.value.trim(),
+        remote: el.liveRemote.checked,
+        resumeText: state.result ? state.result.rawText : ''
+      })
+    }).then(function (data) {
+      if (token !== state.liveToken) return; // a newer request superseded this one
+      state.jobs = data.jobs || [];
+      state.jobsShown = JOBS_PAGE;
+      renderSources(data.sources || []);
+      renderLiveJobs(data);
+    }).catch(function (err) {
+      if (token !== state.liveToken) return;
+      clear(el.liveList);
+      el.liveStatus.textContent = err.message;
+    }).then(function () {
+      if (token === state.liveToken) el.btnRefreshLive.disabled = false;
+    });
+  }
+
+  function renderLiveJobs(data) {
+    clear(el.liveList);
     var total = state.jobs.length;
-    el.jobsStatus.textContent = total
-      ? total + ' sample ' + (total === 1 ? 'role' : 'roles') + (ranked ? ', ranked by how well your resume matches.' : '.')
-      : 'No sample roles match those filters.';
+    var failed = (data.sources || []).filter(function (s) { return s.status !== 'ok'; }).length;
+    if (total) {
+      el.liveStatus.textContent = total + (total === 1 ? ' job' : ' jobs') +
+        (data.hasResumeMatch ? ', best matches for your resume first.' : ', newest first.') +
+        (failed ? ' ' + failed + (failed === 1 ? ' source was' : ' sources were') + ' unavailable.' : '');
+    } else {
+      el.liveStatus.textContent = 'No jobs matched. Try a broader search or turn off “Remote only”.';
+    }
+    el.liveLead.textContent = data.hasResumeMatch
+      ? 'Ranked by how well each posting matches the resume you analyzed.'
+      : 'Fresh postings pulled from several public job boards. Analyze a resume above to rank them by how well you match.';
 
     state.jobs.slice(0, state.jobsShown).forEach(function (job) {
       var badge = null;
       if (job.matchPercentage !== undefined) {
         badge = h('span', { class: 'badge badge-' + tone(job.matchRating), text: job.matchPercentage + '% match' });
       }
-      var tags = [job.category, job.employmentType, job.remoteText, job.salary].filter(Boolean)
-        .map(function (t) { return h('span', { class: 'tag', text: t }); });
-      var skills = (job.skills || []).map(function (s) { return h('span', { class: 'tag', text: s }); });
+      var meta = [job.company, job.location].filter(Boolean).join(' · ');
+      var tags = [];
+      if (job.remote === true) tags.push('Remote');
+      if (job.salary) tags.push(job.salary);
+      var posted = relativeTime(job.postedAt);
+      if (posted) tags.push(posted);
+      (job.tags || []).slice(0, 5).forEach(function (t) { tags.push(t); });
 
-      var useBtn = h('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Score my resume against this role' });
-      useBtn.addEventListener('click', function () {
-        var text = job.title + '\n' + (job.skills || []).join(', ') + '\n' + job.description;
+      var kids = [
+        h('div', { class: 'job-head' }, [
+          h('div', {}, [h('h3', { text: job.title }), h('div', { class: 'meta', text: meta })]),
+          badge
+        ])
+      ];
+      if (job.summary) kids.push(h('p', { text: job.summary }));
+      kids.push(h('div', { class: 'job-tags' }, tags.map(function (t) { return h('span', { class: 'tag', text: t }); })));
+      if (job.missingKeywords && job.missingKeywords.length) {
+        kids.push(h('p', { class: 'small', text: 'Missing from your resume: ' + job.missingKeywords.join(', ') }));
+      }
+
+      var view = h('a', {
+        class: 'btn btn-primary btn-sm', href: job.url, target: '_blank',
+        rel: 'noopener noreferrer nofollow', text: 'View & apply'
+      });
+      var scoreBtn = h('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Score my resume' });
+      scoreBtn.addEventListener('click', function () {
+        if (!state.result) {
+          showError('Analyze a resume first, then you can score it against any job.');
+          document.getElementById('main-content').scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+        var text = job.title + '\n' + (job.tags || []).join(', ') + '\n' + (job.summary || '');
         el.matchJd.value = text;
         el.matchPreset.value = '';
         matchAgainst(text);
       });
+      kids.push(h('div', { class: 'job-actions' }, [view, scoreBtn]));
 
-      var kids = [
-        h('div', { class: 'job-head' }, [
-          h('div', {}, [
-            h('h3', { text: job.title }),
-            h('div', { class: 'meta', text: job.company + ' · ' + job.location })
-          ]),
-          badge
-        ]),
-        h('p', { text: job.description }),
-        h('div', { class: 'job-tags' }, tags.concat(skills))
-      ];
-      if (job.missingKeywords && job.missingKeywords.length) {
-        kids.push(h('p', { class: 'small', text: 'Missing from your resume: ' + job.missingKeywords.join(', ') }));
-      }
-      kids.push(h('div', { class: 'job-actions' }, [useBtn]));
-      el.jobsList.appendChild(h('article', { class: 'job' }, kids));
+      var src = h('div', { class: 'job-source' });
+      src.appendChild(document.createTextNode('via '));
+      var srcLink = h('a', { href: job.url, target: '_blank', rel: 'noopener noreferrer nofollow' });
+      srcLink.textContent = job.sourceName;
+      src.appendChild(srcLink);
+      kids.push(src);
+
+      el.liveList.appendChild(h('article', { class: 'job' }, kids));
     });
 
-    el.btnMoreJobs.hidden = total <= state.jobsShown;
+    el.btnMoreLive.hidden = total <= state.jobsShown;
   }
 
-  el.btnMoreJobs.addEventListener('click', function () {
+  el.btnMoreLive.addEventListener('click', function () {
     state.jobsShown += JOBS_PAGE;
-    renderJobs(!!state.result);
+    renderLiveJobs({ sources: [], hasResumeMatch: !!state.result });
   });
-  function debouncedJobs() { clearTimeout(jobsTimer); jobsTimer = setTimeout(loadJobs, 250); }
-  el.jobsQuery.addEventListener('input', debouncedJobs);
-  el.jobsCategory.addEventListener('change', loadJobs);
-  el.jobsRemote.addEventListener('change', loadJobs);
+  el.liveForm.addEventListener('submit', function (e) { e.preventDefault(); loadLiveJobs(); });
+  el.liveRemote.addEventListener('change', loadLiveJobs);
+  el.btnRefreshLive.addEventListener('click', loadLiveJobs);
 
   /* ── extracted text copy ──────────────────────────────────────────── */
   el.btnCopyText.addEventListener('click', function () {
@@ -481,5 +547,6 @@
 
   /* ── init ─────────────────────────────────────────────────────────── */
   refreshControls();
+  loadLiveJobs();
   if (cfg.currentUser) loadHistory();
 })();
