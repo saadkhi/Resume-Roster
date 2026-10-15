@@ -192,7 +192,13 @@
         </div>
     </div>
 
-    <%- include('partials/apply-email') %>
+    <aside class="card cta-card" aria-label="Apply by email">
+        <div>
+            <h2>Found a hiring post on LinkedIn?</h2>
+            <p class="muted small">Paste it and get the role, deadline and email address pulled out, plus a short application email you can review and send.</p>
+        </div>
+        <a class="btn btn-primary" href="/apply">Draft an application email</a>
+    </aside>
 
     <section class="live-jobs" id="live-jobs" aria-labelledby="liveJobsTitle">
         <div class="live-head">
@@ -220,6 +226,5 @@
 <%- include('partials/footer') %>
 <script src="<%= asset('/match-visualizer.bundle.js') %>" defer></script>
 <script src="<%= asset('/js/app.js') %>" defer></script>
-<script src="<%= asset('/js/apply.js') %>" defer></script>
 </body>
 </html>

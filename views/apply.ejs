@@ -1,0 +1,11 @@
+<%- include('partials/head', { pageTitle: 'Apply by email', pageDescription: 'Paste a LinkedIn hiring post and get the key details plus a short, natural application email you can review and send from your own account.' }) %>
+<%- include('partials/header') %>
+
+<main id="main-content" class="container" data-page="apply">
+    <%- include('partials/apply-email') %>
+</main>
+
+<%- include('partials/footer') %>
+<script src="<%= asset('/js/apply.js') %>" defer></script>
+</body>
+</html>

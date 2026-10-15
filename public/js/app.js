@@ -203,6 +203,7 @@
     renderOverview();
     renderRadar();
     renderSections(r.sections || {});
+    window.RR.rememberResume(r.rawText);
     el.rawText.textContent = r.rawText || '';
     el.factFile.textContent = r.filename || '–';
     el.factCategory.textContent = r.category === 'Uncertain' ? 'Not enough signal' : r.category;
@@ -548,6 +549,12 @@
   // Let the apply-by-email tool use the analyzed resume (never persisted or sent as a file).
   window.RR = window.RR || {};
   window.RR.getResumeText = function () { return state.result ? state.result.rawText : ''; };
+  // Keep the analyzed text in this tab only so the Apply page can highlight matching skills.
+  window.RR.rememberResume = function (text) {
+    try {
+      if (text) window.sessionStorage.setItem('rr_resume_text', String(text).slice(0, 100000));
+    } catch (e) { /* storage unavailable */ }
+  };
 
   /* ── init ─────────────────────────────────────────────────────────── */
   refreshControls();

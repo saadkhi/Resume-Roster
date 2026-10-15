@@ -1,8 +1,8 @@
-<section class="apply" id="apply-email" aria-labelledby="applyTitle">
+<section class="apply apply-page" id="apply-email" aria-labelledby="applyTitle">
     <div class="live-head">
         <div>
-            <h2 id="applyTitle">Apply by email from a LinkedIn post</h2>
-            <p class="muted small">Paste a recruiter's hiring post. We pull out the role, company, deadline and the email address, then draft a short, natural application email. You review it and send it from your own email account.</p>
+            <h1 id="applyTitle">Apply by email from a LinkedIn post</h1>
+            <p class="muted small">Paste a recruiter's hiring post. We pull out the role, company, deadline and the email address, then draft a short, natural application email. You review it and send it from your own email account. Nothing is sent automatically.</p>
         </div>
     </div>
 
@@ -28,6 +28,13 @@
             <p class="hint">The post text, your name and your note are sent to OpenRouter to write the draft. Your resume file and full text are not sent.</p>
             <div class="alert alert-error" id="applyError" role="alert" hidden></div>
         </form>
+
+        <div class="card" id="bookmarkletCard">
+            <h3 class="card-title">Capture jobs from any website</h3>
+            <p class="small muted">Works on LinkedIn, Indeed, Glassdoor and any other job page. Drag this button to your bookmarks bar. On a job page, select the job text (or just click it with nothing selected) and it opens here with the text filled in.</p>
+            <p style="margin-top:0.75rem"><a class="btn btn-secondary" id="bookmarklet" href="#" draggable="true">Send to Resume Rater</a></p>
+            <p class="hint">Nothing leaves your browser until you click it, and it only sends the text on the page you are viewing, to this site.</p>
+        </div>
 
         <div id="applyResult" hidden>
             <div class="card">
@@ -62,7 +69,9 @@
                     <a class="btn btn-secondary" id="btnGmail" href="#" target="_blank" rel="noopener noreferrer">Open in Gmail</a>
                     <button type="button" class="btn btn-secondary" id="btnCopyDraft">Copy email</button>
                     <button type="button" class="btn btn-ghost" id="btnRedraft">Write another version</button>
+                    <button type="button" class="btn btn-secondary" id="btnScore">Score my resume against this post</button>
                 </div>
+                <div class="alert alert-info" id="scoreResult" role="status" hidden></div>
                 <p class="hint">Read it through and edit anything you like. Remember to <strong>attach your resume PDF</strong>; email links cannot attach files for you.</p>
             </div>
         </div>

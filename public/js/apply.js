@@ -4,6 +4,18 @@
   'use strict';
 
   var cfg = (window.RR && window.RR.config) || {};
+
+  // Pre-fill from the bookmarklet (see below) when the page is opened with #job=...
+  function prefillFromHash() {
+    var m = /^#job=(.+)$/.exec(window.location.hash || '');
+    if (!m) return;
+    try {
+      var text = decodeURIComponent(m[1]);
+      var area = document.getElementById('postText');
+      if (area && text) area.value = text.slice(0, 12000);
+      window.history.replaceState(null, '', window.location.pathname);
+    } catch (e) { /* ignore malformed fragment */ }
+  }
   var $ = function (id) { return document.getElementById(id); };
   var form = $('applyForm');
   if (!form) return;
@@ -14,9 +26,19 @@
     result: $('applyResult'), grid: $('detailGrid'), noEmail: $('noEmailNote'), links: $('linkRow'),
     source: $('draftSource'), notice: $('draftNotice'),
     to: $('draftTo'), subject: $('draftSubject'), body: $('draftBody'),
-    mailto: $('btnMailto'), gmail: $('btnGmail'), copy: $('btnCopyDraft'), redraft: $('btnRedraft')
+    mailto: $('btnMailto'), gmail: $('btnGmail'), copy: $('btnCopyDraft'), redraft: $('btnRedraft'),
+    score: $('btnScore'), scoreResult: $('scoreResult'), bookmarklet: $('bookmarklet')
   };
 
+  // Bookmarklet: opens this site with the text of the page being viewed (browser-side only).
+  if (el.bookmarklet) {
+    var code = "(function(){var s=window.getSelection?String(window.getSelection()).trim():'';" +
+      "var t=s||document.body.innerText||'';t=t.replace(/\\s+/g,' ').slice(0,6000);" +
+      "window.open('" + window.location.origin + "/apply#job='+encodeURIComponent(document.title+'\\n'+location.href+'\\n'+t),'_blank');})();";
+    el.bookmarklet.setAttribute('href', 'javascript:' + code);
+  }
+
+  prefillFromHash();
   if (cfg.currentUser && cfg.currentUser.name) el.name.value = cfg.currentUser.name;
   try {
     var savedName = window.localStorage.getItem('rr_sender_name');
@@ -24,7 +46,11 @@
   } catch (e) { /* storage unavailable */ }
 
   function resumeText() {
-    return typeof (window.RR && window.RR.getResumeText) === 'function' ? window.RR.getResumeText() : '';
+    try {
+      return window.sessionStorage.getItem('rr_resume_text') || '';
+    } catch (e) {
+      return '';
+    }
   }
 
   // Reveal the resume option once a resume has been analyzed.
@@ -128,6 +154,31 @@
       el.btn.textContent = label;
     });
   }
+
+  // Score the analyzed resume against the pasted post (local scoring, no AI).
+  el.score.addEventListener('click', function () {
+    var text = resumeText();
+    el.scoreResult.hidden = false;
+    if (!text) {
+      el.scoreResult.textContent = 'Analyze your resume on the home page first, then come back and score it against this post.';
+      return;
+    }
+    el.scoreResult.textContent = 'Scoring…';
+    fetch('/api/evaluate-match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resumeText: text, jobDescriptionText: el.post.value.trim() })
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (b) {
+        if (!res.ok || !b.success) throw new Error(b.error || 'Could not score.');
+        return b;
+      });
+    }).then(function (b) {
+      var missing = (b.missingKeywords || []).slice(0, 6).join(', ');
+      el.scoreResult.textContent = 'Match: ' + b.percentage + '% (' + b.matchRating + ').' +
+        (missing ? ' Missing from your resume: ' + missing + '.' : ' Your resume covers the key terms.');
+    }).catch(function (err) { el.scoreResult.textContent = err.message; });
+  });
 
   form.addEventListener('submit', function (e) { e.preventDefault(); draft(); });
   el.redraft.addEventListener('click', draft);

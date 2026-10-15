@@ -254,3 +254,15 @@ describe('apply by email API', () => {
     assert.ok(['ai', 'template'].includes(body.source));
   });
 });
+
+describe('apply page', () => {
+  it('serves /apply as its own page and removes the form from the home page', async () => {
+    const apply = await (await fetch(`${base}/apply`)).text();
+    assert.match(apply, /id="applyForm"/);
+    assert.match(apply, /<h1[^>]*>Apply by email/);
+    assert.doesNotMatch(apply, /<script(?![^>]*\bsrc=)(?![^>]*application\/json)[^>]*>/);
+    const home = await (await fetch(`${base}/`)).text();
+    assert.doesNotMatch(home, /id="applyForm"/);
+    assert.match(home, /href="\/apply"/);
+  });
+});
