@@ -1,0 +1,57 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1939 >>
+stream
+BT /F1 10 Tf 48 760 Td (Daniel Okafor) Tj ET
+BT /F1 10 Tf 48 746 Td (daniel.okafor@example.com | \(555\) 010-7788 | Seattle, WA | github.com/example-dokafor) Tj ET
+BT /F1 10 Tf 48 732 Td () Tj ET
+BT /F1 10 Tf 48 718 Td (SUMMARY) Tj ET
+BT /F1 10 Tf 48 704 Td (Backend engineer with 6 years of experience designing distributed systems and microservices in Java and Go.) Tj ET
+BT /F1 10 Tf 48 690 Td () Tj ET
+BT /F1 10 Tf 48 676 Td (EXPERIENCE) Tj ET
+BT /F1 10 Tf 48 662 Td (Senior Software Engineer, Cloudmart Logistics \(2021 - Present\)) Tj ET
+BT /F1 10 Tf 48 648 Td (- Designed event-driven microservices on Kafka handling 12k requests per second.) Tj ET
+BT /F1 10 Tf 48 634 Td (- Led migration of a monolith to Kubernetes, cutting deployment time from 2 hours to 10 minutes.) Tj ET
+BT /F1 10 Tf 48 620 Td (- Mentored 5 engineers and ran system design reviews.) Tj ET
+BT /F1 10 Tf 48 606 Td (Software Engineer, Pinecrest Software \(2018 - 2021\)) Tj ET
+BT /F1 10 Tf 48 592 Td (- Built REST APIs in Java and Spring Boot with PostgreSQL and Redis.) Tj ET
+BT /F1 10 Tf 48 578 Td (- Improved query performance by 60% through indexing and caching.) Tj ET
+BT /F1 10 Tf 48 564 Td () Tj ET
+BT /F1 10 Tf 48 550 Td (SKILLS) Tj ET
+BT /F1 10 Tf 48 536 Td (Languages: Java, Go, Python, SQL, C++) Tj ET
+BT /F1 10 Tf 48 522 Td (Systems: Algorithms, data structures, system design, microservices, Kafka, Redis, PostgreSQL) Tj ET
+BT /F1 10 Tf 48 508 Td (DevOps: Docker, Kubernetes, AWS, Terraform, CI/CD, Git) Tj ET
+BT /F1 10 Tf 48 494 Td () Tj ET
+BT /F1 10 Tf 48 480 Td (PROJECTS) Tj ET
+BT /F1 10 Tf 48 466 Td (Distributed Rate Limiter: Token bucket service in Go with Redis, open source.) Tj ET
+BT /F1 10 Tf 48 452 Td (Job Scheduler: Fault-tolerant cron service with leader election.) Tj ET
+BT /F1 10 Tf 48 438 Td () Tj ET
+BT /F1 10 Tf 48 424 Td (EDUCATION) Tj ET
+BT /F1 10 Tf 48 410 Td (B.S. Computer Science, Lakeview University \(2014 - 2018\)) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002232 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2302
+%%EOF

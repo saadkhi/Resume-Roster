@@ -4,43 +4,11 @@
   "buildCommand": "npm run build",
   "functions": {
     "api/index.js": {
-      "includeFiles": "{views/**,uploads/**,data/**,public/**,src/**,*.csv,node_modules/pdfjs-dist/**}",
-      "maxDuration": 30
-    },
-    "api/*.js": {
-      "includeFiles": "{views/**,uploads/**,data/**,public/**,src/**,*.csv,node_modules/pdfjs-dist/**}",
+      "includeFiles": "{views/**,uploads/**,data/**,public/**,src/**,scripts/init-supabase-schema.sql,node_modules/pdfjs-dist/**}",
       "maxDuration": 30
     }
   },
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/index.js"
-    }
-  ],
-  "headers": [
-    {
-      "source": "/app.css",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=86400" }
-      ]
-    },
-    {
-      "source": "/match-visualizer.bundle.js",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=604800, stale-while-revalidate=86400" }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-src 'none'; frame-ancestors 'none';" }
-      ]
-    }
+    { "source": "/(.*)", "destination": "/api/index.js" }
   ]
 }

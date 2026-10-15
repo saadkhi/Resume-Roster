@@ -1,1383 +1,224 @@
-<%- include('partials/head', { pageTitle: 'Resume Rater', pageDescription: 'Career Intelligence & ATS Resume Rater — TF-IDF cosine match, competency radar, CV section parser.', includeSupabase: true }) %>
-<%- include('partials/header', { showMainNav: true }) %>
-    <!-- Main Workspace -->
-    <main class="main-container site-container" id="main-content" role="main">
-        <!-- Screen-reader live region for upload/parse status announcements -->
-        <div id="srAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
-        <!-- Hero Section -->
-        <div class="hero-section">
-            <div>
-                <h1 class="hero-title">Career Intelligence & ATS Resume Rater</h1>
-                <div class="hero-subtitle">
-                    <span>TF-IDF Vector Space</span>
-                    <span>·</span>
-                    <span>Multi-Dimensional Competency Fit</span>
-                    <span>·</span>
-                    <span>Automated CV Section Parser</span>
+<%- include('partials/head', { pageTitle: null, includeSupabase: false }) %>
+<%- include('partials/header') %>
+
+<main id="main-content" class="container" data-page="home">
+    <div id="srAnnouncer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+
+    <section class="hero">
+        <h1>Check how well your resume matches a job</h1>
+        <p class="lead">Upload a PDF resume and a job description. You'll get a match score, the keywords you're missing, and an ATS-readiness checklist, in seconds.</p>
+        <ul class="hero-points">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Free, no account needed</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>PDF up to 4 MB</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Your resume text is not saved</li>
+        </ul>
+    </section>
+
+    <div class="workspace">
+        <!-- ── Inputs ─────────────────────────────────────────────── -->
+        <div class="input-col">
+            <form id="analyzeForm" class="card" novalidate>
+                <div class="step">
+                    <h2 class="step-title"><span class="step-num" aria-hidden="true">1</span>Add your resume</h2>
+
+                    <div class="dropzone" id="dropzone">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <strong>Drop your PDF here</strong>
+                        <span class="small muted">or</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="btnBrowse" style="margin-top:0.4rem">Choose a PDF</button>
+                        <input type="file" id="fileInput" accept="application/pdf,.pdf" class="sr-only" aria-label="Resume PDF file">
+                    </div>
+
+                    <div class="file-chip" id="fileChip" hidden>
+                        <svg class="file-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <div class="file-meta">
+                            <div class="file-name" id="fileName"></div>
+                            <div class="small muted" id="fileSize"></div>
+                        </div>
+                        <button type="button" class="btn btn-ghost btn-sm" id="btnClearFile">Change</button>
+                    </div>
+
+                    <div class="samples">
+                        <span class="small muted">No resume handy? Try a fictional sample:</span>
+                        <div class="sample-list" id="sampleList">
+                            <button type="button" class="chip-btn" data-sample="sample-data-scientist.pdf" data-role="Data Scientist, Machine Learning, Python, SQL, Statistics, Deep Learning, Predictive Modeling" aria-pressed="false">Data scientist</button>
+                            <button type="button" class="chip-btn" data-sample="sample-software-engineer.pdf" data-role="Software Engineer, Java, C++, Algorithms, Data Structures, System Design, Microservices" aria-pressed="false">Software engineer</button>
+                            <button type="button" class="chip-btn" data-sample="sample-web-developer.pdf" data-role="Web Developer, HTML, CSS, JavaScript, React, Node.js, Frontend, Responsive Design" aria-pressed="false">Web developer</button>
+                            <button type="button" class="chip-btn" data-sample="sample-junior-developer.pdf" data-role="Web Developer, HTML, CSS, JavaScript, React, Node.js, Frontend, Responsive Design" aria-pressed="false">Junior developer</button>
+                        </div>
+                    </div>
                 </div>
-            </div>
-            <div class="hero-meta-strip">
-                <span class="hero-meta-item">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    20 Standard Industry Roles
-                </span>
-                <span style="color: var(--border-hairline);">·</span>
-                <span class="hero-meta-item">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                    Real-Time Cosine Scoring
-                </span>
-            </div>
+
+                <div class="step">
+                    <h2 class="step-title"><span class="step-num" aria-hidden="true">2</span>Pick the target job</h2>
+                    <div class="field">
+                        <label class="label" for="jdText">Paste the job description</label>
+                        <textarea id="jdText" class="textarea" rows="5" maxlength="20000" placeholder="Paste the responsibilities and requirements from the job posting…"></textarea>
+                    </div>
+                    <div class="divider-text">or</div>
+                    <div class="field">
+                        <label class="label" for="rolePreset">Start from a role preset</label>
+                        <select id="rolePreset" class="select">
+                            <%- include('partials/role-options') %>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <button type="submit" class="btn btn-primary btn-block" id="btnAnalyze" disabled>Analyze resume</button>
+                    <p class="hint" id="analyzeHint">Add a resume and a job to get a match score.</p>
+                    <div class="progress" id="progress" hidden>
+                        <span class="small muted" id="progressText">Analyzing…</span>
+                        <div class="progress-track"><div class="progress-bar"></div></div>
+                    </div>
+                    <div class="alert alert-error" id="alertBox" role="alert" hidden></div>
+                </div>
+            </form>
+
+            <section class="card" id="historyCard" aria-labelledby="historyTitle" hidden>
+                <h2 class="card-title" id="historyTitle">Your recent evaluations</h2>
+                <p class="small muted" id="historyNote"></p>
+                <ul class="history-list" id="historyList"></ul>
+                <button type="button" class="btn btn-danger btn-sm" id="btnDeleteHistory" style="margin-top:0.9rem">Delete my saved data</button>
+            </section>
         </div>
 
-        <!-- Split-Pane Workspace -->
-        <div class="workspace-grid">
-            <!-- Left Panel: Upload & Job Target Specification -->
-            <section class="surface-card" id="upload-section" aria-labelledby="upload-section-heading">
-                <div class="card-header-row">
-                    <div>
-                        <h2 class="card-title" id="upload-section-heading">Resume & Job Specification</h2>
-                        <p class="card-caption">Upload candidate document or test with industry samples</p>
-                    </div>
-                    <span class="file-size" id="uploadStatusBadge">Ready</span>
+        <!-- ── Results ────────────────────────────────────────────── -->
+        <div class="results-col">
+            <section class="card empty" id="emptyState">
+                <div class="empty-icon" aria-hidden="true">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 15 11 17 15 13"/></svg>
                 </div>
-
-                <!-- Fallback Form for Standard HTML POST /upload -->
-                <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
-                    <!-- Interactive Dropzone -->
-                    <div class="dropzone-container" id="dropzone" aria-describedby="dropzone-hint">
-                        <input type="file" id="resumeFileInput" name="resume" accept=".pdf,application/pdf" class="sr-only" aria-label="Upload PDF resume file">
-                        <div class="dropzone-icon">
-                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
-                                <path d="M12 12v9"></path>
-                                <path d="m16 16-4-4-4 4"></path>
-                            </svg>
-                        </div>
-                        <p class="dropzone-headline">Drag & drop candidate PDF resume</p>
-                        <p class="dropzone-helper" id="dropzone-hint">Standard PDF files (.pdf) up to 4MB</p>
-                        <button type="button" class="browse-cta" id="btnBrowseFile" aria-label="Browse for PDF file to upload">Browse PDF Document</button>
-                    </div>
-
-                    <!-- Selected File Metadata Card -->
-                    <div class="selected-file-card" id="selectedFileCard">
-                        <div class="selected-file-info">
-                            <div class="file-icon-box">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                </svg>
-                            </div>
-                            <div class="file-meta-text">
-                                <p class="file-name" id="selectedFileName">filename.pdf</p>
-                                <p class="file-size" id="selectedFileSize">0 KB</p>
-                            </div>
-                        </div>
-                        <button type="button" class="btn-remove" id="btnRemoveFile">Change</button>
-                    </div>
-
-                    <!-- Quick Sample Resumes Picker -->
-                    <div class="samples-strip">
-                        <div class="samples-header-row">
-                            <span class="samples-label">Quick Test Candidates:</span>
-                            <span class="card-caption">Click to auto-parse</span>
-                        </div>
-                        <div class="sample-chips-grid">
-                            <button type="button" class="sample-chip active" data-sample="Saads_CV_Resume.pdf" data-role="Data Scientist, Machine Learning, Python, SQL, Statistics, Modeling">Saad Ali (ML/Data)</button>
-                            <button type="button" class="sample-chip" data-sample="resume1.pdf" data-role="Software Engineer, Java, C++, Algorithms, System Design">Sample Resume 1</button>
-                            <button type="button" class="sample-chip" data-sample="resume2.pdf" data-role="Web Developer, HTML, CSS, JavaScript, React, Node.js">Sample Resume 2</button>
-                            <button type="button" class="sample-chip" data-sample="Saad_Ali_ResumeCV_Old.pdf" data-role="Python Developer, Django, Flask, MySQL, REST APIs">Saad Ali (Old CV)</button>
-                        </div>
-                    </div>
-
-                    <!-- Target Job Description Accordion (20 Complete Roles) -->
-                    <div class="optional-jd-section">
-                        <div class="section-toggle-header" id="jdToggleHeader">
-                            <span class="section-toggle-title">Target Job Role & Requirements</span>
-                            <svg class="section-toggle-chevron" id="jdChevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="6 9 12 15 18 9"></polyline>
-                            </svg>
-                        </div>
-
-                        <div class="jd-fields-wrap" id="jdFieldsWrap">
-                            <div>
-                                <label class="input-label" for="jobKeywordsSelect">Select from 20 Industry Role Presets:</label>
-                                <select id="jobKeywordsSelect" name="job_keywords" class="input-select">
-                                <%- include('partials/role-options') %>
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="input-label" for="jobDescriptionTextarea">Target Job Description Text / Responsibilities:</label>
-                                <textarea id="jobDescriptionTextarea" name="job_description_text" class="input-textarea" rows="3" placeholder="Enter target responsibilities, qualifications, and core competencies..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Action Button -->
-                    <div class="action-row">
-                        <button type="button" class="btn-primary" id="btnParseResume" aria-describedby="alertBox">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                            <span id="btnParseText">Evaluate & Parse Resume</span>
-                        </button>
-                    </div>
-
-                    <!-- Progress Indicator -->
-                    <div class="progress-container" id="progressContainer" role="status" aria-live="polite" aria-label="Upload progress">
-                        <div class="progress-header">
-                            <span id="progressStepText">Extracting text layers & parsing vectors...</span>
-                            <span class="file-size" id="progressPercent">Processing</span>
-                        </div>
-                        <div class="progress-bar-track">
-                            <div class="progress-bar-fill"></div>
-                        </div>
-                    </div>
-
-                    <div class="alert-box" id="alertBox" role="alert" aria-live="assertive" aria-atomic="true"></div>
-                </form>
+                <h2>Your results will appear here</h2>
+                <p>Add a resume and the job you're targeting, then run the analysis.</p>
+                <div class="steps">
+                    <div><b>Match score</b><span>How much of the job's important vocabulary your resume covers.</span></div>
+                    <div><b>Keyword gaps</b><span>The high-value terms from the posting you haven't mentioned.</span></div>
+                    <div><b>ATS checklist</b><span>Contact details, sections, length and measurable results.</span></div>
+                </div>
             </section>
 
-            <!-- Right Panel: Live Career Intelligence Dashboard -->
-            <div class="dashboard-viewport">
-                <!-- Top Metric Scorecards -->
-                <div class="metrics-banner-grid">
-                    <div class="metric-card">
-                        <div class="metric-card-header">
-                            <span>Predicted Category</span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                        </div>
-                        <div class="metric-card-value" id="resCategory">Data Scientist</div>
-                        <div class="metric-card-caption" id="resFilename">Saads_CV_Resume.pdf</div>
-                    </div>
-
-                    <div class="metric-card">
-                        <div class="metric-card-header">
-                            <span>Match Rating</span>
-                            <span class="status-badge high" role="status" id="resMatchBadge" aria-label="Match rating: High Match">High Match</span>
-                        </div>
-                        <div class="metric-card-value" id="resSimilarityScore">0.85</div>
-                        <div class="metric-card-caption" id="resTargetRoleKicker">vs. Data Scientist Benchmark</div>
-                    </div>
-
-                    <div class="metric-card">
-                        <div class="metric-card-header">
-                            <span>Doc Scope</span>
-                            <span class="file-size" id="resPages">1 page</span>
-                        </div>
-                        <div class="metric-card-value" id="resWords">482</div>
-                        <div class="metric-card-caption"><span id="resChars">3,490</span> raw characters</div>
-                    </div>
-                </div>
-
-                <!-- Main Analysis Tabs Card -->
-                <div class="workspace-tabs-card" id="resultsPanel">
-                    <div class="tabs-header-bar" role="tablist" aria-label="Analysis results">
-                        <button type="button" class="tab-btn active" data-tab="tab-recharts"
-                                role="tab" id="tabbtn-recharts"
-                                aria-selected="true" aria-controls="tab-recharts" tabindex="0">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" focusable="false"><circle cx="12" cy="12" r="10"></circle><path d="m4.93 4.93 4.24 4.24"></path><path d="m14.83 9.17 4.24-4.24"></path></svg>
-                            Recharts Competency Radar
-                        </button>
-                        <button type="button" class="tab-btn" data-tab="tab-sections"
-                                role="tab" id="tabbtn-sections"
-                                aria-selected="false" aria-controls="tab-sections" tabindex="-1">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" focusable="false"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                            Extracted CV Sections
-                        </button>
-                        <button type="button" class="tab-btn" data-tab="tab-matcher"
-                                role="tab" id="tabbtn-matcher"
-                                aria-selected="false" aria-controls="tab-matcher" tabindex="-1">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" focusable="false"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                            Role Match Evaluator
-                        </button>
-                        <button type="button" class="tab-btn" data-tab="tab-jobs"
-                                role="tab" id="tabbtn-jobs"
-                                aria-selected="false" aria-controls="tab-jobs" tabindex="-1">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
-                            Job Listings
-                            <span class="tab-counter-badge" id="jobsTabCounter" aria-live="polite">12</span>
-                        </button>
-                        <button type="button" class="tab-btn" data-tab="tab-cleaned"
-                                role="tab" id="tabbtn-cleaned"
-                                aria-selected="false" aria-controls="tab-cleaned" tabindex="-1">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" focusable="false"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
-                            Cleaned Tokens
-                        </button>
-                        <button type="button" class="tab-btn" data-tab="tab-raw"
-                                role="tab" id="tabbtn-raw"
-                                aria-selected="false" aria-controls="tab-raw" tabindex="-1">
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" focusable="false"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-                            Raw PDF Layers
-                        </button>
-                    </div>
-
-                    <div class="tab-content-area">
-                        <!-- Tab 0: Recharts Radar -->
-                        <div class="tab-pane active" id="tab-recharts" role="tabpanel" aria-labelledby="tabbtn-recharts">
-                            <div id="recharts-match-container"></div>
-                            <!-- Text alternative for radar chart (WCAG 1.1.1) -->
-                            <div role="region" id="radarAltBlock" aria-label="Competency radar data table">
-                                <p class="radar-alt-caption sr-only">Match competency scores — same data as radar chart above</p>
-                                <table class="radar-alt-table sr-only" id="radarAltTable" aria-label="Match competency scores">
-                                    <thead><tr><th scope="col">Dimension</th><th scope="col">Your Score</th><th scope="col">Target</th></tr></thead>
-                                    <tbody id="radarAltTableBody">
-                                        <tr><td>Cosine Fit</td><td>85</td><td>100</td></tr>
-                                        <tr><td>Key Skills</td><td>78</td><td>100</td></tr>
-                                        <tr><td>Keywords</td><td>70</td><td>100</td></tr>
-                                        <tr><td>Projects</td><td>65</td><td>100</td></tr>
-                                        <tr><td>Domain Scope</td><td>80</td><td>100</td></tr>
-                                    </tbody>
-                                </table>
+            <div id="resultsWrap" hidden>
+                <section class="card" aria-labelledby="summaryTitle">
+                    <div class="summary">
+                        <div class="score-ring" id="scoreRing" role="img" aria-label="Match score">
+                            <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+                                <circle class="ring-track" cx="66" cy="66" r="56" fill="none" stroke-width="12"/>
+                                <circle class="ring-value" id="ringValue" cx="66" cy="66" r="56" fill="none" stroke-width="12" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+                            </svg>
+                            <div class="ring-label">
+                                <span class="ring-num" id="ringNum">–</span>
+                                <span class="ring-sub" id="ringSub">match</span>
                             </div>
                         </div>
-
-                        <!-- Tab 1: Extracted Sections -->
-                        <div class="tab-pane" id="tab-sections" role="tabpanel" aria-labelledby="tabbtn-sections">
-                            <div class="sections-grid">
-                                <div class="section-box">
-                                    <div class="section-box-header">
-                                        <span class="section-box-name">Education</span>
-                                        <button type="button" class="btn-copy-section" data-target="sec-education">Copy</button>
-                                    </div>
-                                    <div class="section-box-content" id="sec-education">Bachelor of Science in Software Engineering, FAST-NUCES (2021 - 2025). Relevant coursework: Machine Learning, Data Structures, Operating Systems, Computer Vision.</div>
-                                </div>
-
-                                <div class="section-box">
-                                    <div class="section-box-header">
-                                        <span class="section-box-name">Work Experience</span>
-                                        <button type="button" class="btn-copy-section" data-target="sec-experience">Copy</button>
-                                    </div>
-                                    <div class="section-box-content" id="sec-experience">Machine Learning Intern & Software Engineering Researcher. Developed computer vision algorithms with OpenCV and Flask, built feature extraction pipelines, optimized neural models for latency.</div>
-                                </div>
-
-                                <div class="section-box">
-                                    <div class="section-box-header">
-                                        <span class="section-box-name">Technical Skills</span>
-                                        <button type="button" class="btn-copy-section" data-target="sec-skills">Copy</button>
-                                    </div>
-                                    <div class="section-box-content" id="sec-skills">Python, SQL, PyTorch, TensorFlow, Scikit-Learn, OpenCV, Flask, Django, Spiking Neural Networks (SNN), TF-IDF, Git, Docker, REST APIs, Statistics.</div>
-                                </div>
-
-                                <div class="section-box">
-                                    <div class="section-box-header">
-                                        <span class="section-box-name">Projects & Systems</span>
-                                        <button type="button" class="btn-copy-section" data-target="sec-projects">Copy</button>
-                                    </div>
-                                    <div class="section-box-content" id="sec-projects">1. SNN Gesture Recognition Engine: Neuromorphic vision processor with 94.2% accuracy.
-2. Resume Match Evaluator: TF-IDF vectorization with cosine similarity scoring.
-3. Boiler Management Monitoring System: IoT automation dashboard in Python.</div>
-                                </div>
-                            </div>
+                        <div>
+                            <h2 id="summaryTitle"><span id="ratingText">Analysis</span> <span class="badge" id="ratingBadge" hidden></span></h2>
+                            <p class="target" id="targetText"></p>
+                            <dl class="facts">
+                                <div class="fact"><dt>File</dt><dd id="factFile">–</dd></div>
+                                <div class="fact"><dt>Likely field</dt><dd id="factCategory">–</dd></div>
+                                <div class="fact"><dt>Length</dt><dd id="factLength">–</dd></div>
+                            </dl>
                         </div>
+                    </div>
+                </section>
 
-                        <!-- Tab 2: Live Role Match Evaluator -->
-                        <div class="tab-pane" id="tab-matcher" role="tabpanel" aria-labelledby="tabbtn-matcher">
-                            <div class="matcher-grid">
-                                <div class="matcher-left">
-                                    <div>
-                                        <label class="input-label" for="liveJdPreset">Select Role Benchmark Preset:</label>
-                                        <select id="liveJdPreset" class="input-select">
+                <section class="card tabs-card" id="resultsPanel">
+                    <div class="tablist" role="tablist" aria-label="Analysis results">
+                        <button class="tab" role="tab" id="tab-overview-btn" aria-selected="true" aria-controls="tab-overview" data-tab="tab-overview">Overview</button>
+                        <button class="tab" role="tab" id="tab-radar-btn" aria-selected="false" aria-controls="tab-radar" data-tab="tab-radar" tabindex="-1">Skill radar</button>
+                        <button class="tab" role="tab" id="tab-sections-btn" aria-selected="false" aria-controls="tab-sections" data-tab="tab-sections" tabindex="-1">Resume sections</button>
+                        <button class="tab" role="tab" id="tab-matcher-btn" aria-selected="false" aria-controls="tab-matcher" data-tab="tab-matcher" tabindex="-1">Try another job</button>
+                        <button class="tab" role="tab" id="tab-jobs-btn" aria-selected="false" aria-controls="tab-jobs" data-tab="tab-jobs" tabindex="-1">Sample roles</button>
+                        <button class="tab" role="tab" id="tab-text-btn" aria-selected="false" aria-controls="tab-text" data-tab="tab-text" tabindex="-1">Extracted text</button>
+                    </div>
+
+                    <!-- Overview -->
+                    <div class="tabpanel" role="tabpanel" id="tab-overview" aria-labelledby="tab-overview-btn">
+                        <div id="overviewKeywords">
+                            <h3 class="section-title">Keywords from the job</h3>
+                            <div class="kw-legend"><span>✓ in your resume</span><span>✕ missing</span></div>
+                            <div class="kw-wrap" id="kwWrap"></div>
+                        </div>
+                        <div id="overviewSuggestions">
+                            <h3 class="section-title">What to improve</h3>
+                            <ul class="suggestions" id="suggestionList"></ul>
+                        </div>
+                        <h3 class="section-title">ATS readiness checklist</h3>
+                        <ul class="checklist" id="checkList"></ul>
+                    </div>
+
+                    <!-- Radar -->
+                    <div class="tabpanel" role="tabpanel" id="tab-radar" aria-labelledby="tab-radar-btn" hidden>
+                        <p class="muted small" id="radarIntro">Each axis shows how much of the job's key vocabulary appears in that part of your resume.</p>
+                        <div class="radar-box" id="radarMount"></div>
+                        <table class="dim-table">
+                            <caption class="sr-only">Score by dimension</caption>
+                            <thead><tr><th scope="col">Dimension</th><th scope="col">Score</th><th scope="col"></th></tr></thead>
+                            <tbody id="dimBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Sections -->
+                    <div class="tabpanel" role="tabpanel" id="tab-sections" aria-labelledby="tab-sections-btn" hidden>
+                        <p class="muted small">This is how an automated parser reads your resume. If a section is missing here, an ATS may not find it either.</p>
+                        <div class="sections-grid" id="sectionsGrid" style="margin-top:1rem"></div>
+                    </div>
+
+                    <!-- Matcher -->
+                    <div class="tabpanel" role="tabpanel" id="tab-matcher" aria-labelledby="tab-matcher-btn" hidden>
+                        <p class="muted small">Re-score this same resume against a different job without uploading it again.</p>
+                        <div class="field" style="margin-top:1rem">
+                            <label class="label" for="matchPreset">Role preset</label>
+                            <select id="matchPreset" class="select">
                                 <%- include('partials/role-options') %>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label class="input-label" for="liveJdInput">Job Description / Requirements Text:</label>
-                                        <textarea id="liveJdInput" class="input-textarea" rows="5" placeholder="Paste target requirements or job posting text..."></textarea>
-                                    </div>
-
-                                    <button type="button" class="btn-primary" id="btnComputeLiveMatch" style="width: auto; align-self: flex-start;">
-                                        Evaluate Match Score
-                                    </button>
-                                </div>
-
-                                <div class="matcher-score-card">
-                                    <div class="score-circle">
-                                        <span class="score-circle-num" id="liveScoreNum">0.85</span>
-                                        <span class="score-circle-lbl">SIMILARITY</span>
-                                    </div>
-                                    <h4 class="card-title" id="liveRatingText" style="color: #16a34a;">High Match</h4>
-                                    <p class="card-caption" id="liveMatchDesc" style="margin-top: 0.35rem;">85% vector alignment against Data Scientist requirements.</p>
-
-                                    <div style="width: 100%; margin-top: 1rem; text-align: left;">
-                                        <span class="input-label">Key Term Frequency Alignment:</span>
-                                        <div class="keyword-alignment-list" id="keywordAlignmentList">
-                                            <div class="keyword-item matched"><span>Python</span><span class="kw-status" aria-label="Matched">Matched</span></div>
-                                            <div class="keyword-item matched"><span>Machine Learning</span><span class="kw-status" aria-label="Matched">Matched</span></div>
-                                            <div class="keyword-item matched"><span>SQL</span><span class="kw-status" aria-label="Matched">Matched</span></div>
-                                            <div class="keyword-item matched"><span>OpenCV / Vision</span><span class="kw-status" aria-label="Matched">Matched</span></div>
-                                            <div class="keyword-item missing"><span>Deep Learning Deployment</span><span class="kw-status" aria-label="Missing">Missing</span></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            </select>
                         </div>
-
-                        <!-- Tab: Job Listings (Sample Dataset) -->
-                        <div class="tab-pane" id="tab-jobs" role="tabpanel" aria-labelledby="tabbtn-jobs">
-                            <div class="jobs-container">
-                                <div class="jobs-toolbar">
-                                    <div class="jobs-search-row">
-                                        <div class="jobs-search-box">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <circle cx="11" cy="11" r="8"></circle>
-                                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                                            </svg>
-                                            <input type="text" id="jobsSearchInput" class="jobs-search-input" placeholder="Search by role, skill, company (e.g. PyTorch, Scale AI, Stripe)..." aria-label="Search jobs">
-                                        </div>
-
-                                        <div class="jobs-filter-group">
-                                            <select id="jobsCategoryFilter" class="jobs-select" aria-label="Filter by Category">
-                                                <option value="">All Job Categories</option>
-                                                <option value="Data Science & AI">Data Science & AI</option>
-                                                <option value="Software Engineering">Software Engineering</option>
-                                                <option value="DevOps & Cloud">DevOps & Cloud</option>
-                                                <option value="Cybersecurity">Cybersecurity</option>
-                                                <option value="Database & Systems">Database & Systems</option>
-                                                <option value="Product & Management">Product & Management</option>
-                                            </select>
-
-                                            <select id="jobsSortFilter" class="jobs-select" aria-label="Sort Jobs">
-                                                <option value="match">Rank by ATS Match Fit</option>
-                                                <option value="salary">Sort by Salary (High-Low)</option>
-                                                <option value="recent">Sort by Most Recent</option>
-                                            </select>
-
-                                            <label class="jobs-remote-toggle" for="jobsRemoteToggle">
-                                                <input type="checkbox" id="jobsRemoteToggle">
-                                                <span>Remote Only</span>
-                                            </label>
-
-                                            <button type="button" class="btn-job-action secondary" id="btnRefreshJobs" title="Refresh Live Jobs">
-                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
-                                                Refresh
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    <div class="jobs-status-banner" id="jobsStatusBanner">
-                                        <div class="jobs-status-info">
-                                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                                            <span id="jobsStatusText">Loading sample job dataset...</span>
-                                        </div>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                                            <span class="jobs-status-tag" id="jobsCountBadge">All Positions</span>
-                                            <span class="jobs-status-tag" style="background: #f1f5f9; color: var(--text-secondary);" id="jobsSourceBadge">Sample Dataset</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Dynamic Job Cards List (All Database Jobs) -->
-                                <div class="jobs-cards-list" id="jobsCardsContainer">
-                                    <div style="text-align: center; padding: 2.5rem; color: var(--text-muted); font-size: 0.8125rem;">
-                                        <!-- Skeleton loaders reserve height to prevent CLS -->
-                                        <div class="job-skeleton"><div class="skeleton-line title"></div><div class="skeleton-line company"></div><div class="skeleton-line text"></div><div class="skeleton-line tags"></div></div>
-                                        <div class="job-skeleton" style="margin-top:0.75rem;"><div class="skeleton-line title"></div><div class="skeleton-line company"></div><div class="skeleton-line text short"></div><div class="skeleton-line tags"></div></div>
-                                        <div class="job-skeleton" style="margin-top:0.75rem;"><div class="skeleton-line title"></div><div class="skeleton-line company"></div><div class="skeleton-line text"></div><div class="skeleton-line tags"></div></div>
-                                        <p style="margin-top:1rem;">Loading job listings from sample dataset...</p>
-                                    </div>
-                                </div>
-
-                                <!-- Pagination & Display Controls for Database Jobs -->
-                                <div class="jobs-pagination-bar" id="jobsPaginationBar" style="display: none;">
-                                    <div class="jobs-page-info" id="jobsPageInfo">Displaying positions from sample dataset</div>
-                                    <div class="jobs-page-controls">
-                                        <button type="button" class="btn-job-page" id="btnJobsPrevPage">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                                            Previous
-                                        </button>
-                                        <span class="jobs-page-current" id="jobsPageCurrent">Page 1 of 1</span>
-                                        <button type="button" class="btn-job-page" id="btnJobsNextPage">
-                                            Next
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                                        </button>
-                                        <button type="button" class="btn-job-page active-toggle" id="btnJobsToggleShowAll">Display All Positions</button>
-                                    </div>
-                                </div>
-                            </div>
+                        <div class="field">
+                            <label class="label" for="matchJd">Job description</label>
+                            <textarea id="matchJd" class="textarea" rows="6" maxlength="20000" placeholder="Paste another job description…"></textarea>
                         </div>
+                        <button type="button" class="btn btn-primary" id="btnMatch" style="margin-top:1rem">Score against this job</button>
+                    </div>
 
-                        <!-- Tab 3: Cleaned Tokens -->
-                        <div class="tab-pane" id="tab-cleaned" role="tabpanel" aria-labelledby="tabbtn-cleaned">
-                            <div class="text-viewer-card">
-                                <div class="viewer-toolbar">
-                                    <span class="card-caption">Preprocessed token stream used for TF-IDF vectorization</span>
-                                    <button type="button" class="btn-copy-section" id="btnCopyCleaned">Copy Cleaned Text</button>
-                                </div>
-                                <pre class="viewer-code-pre" id="cleanedTextPre">saad ather ali summary third year software engineering student passionate cybersecurity malware analysis seeking software engineering machine learning internship education bachelor science software engineering fast nuces karachi courses machine learning artificial intelligence operating systems technical skills python sql opencv flask django pytorch tensorflow spiking neural networks rest apis projects snn gesture recognition engine neuromorphic vision processor accuracy resume match evaluator tf idf vectorization cosine similarity boiler management system iot automation dashboard</pre>
-                            </div>
+                    <!-- Sample roles -->
+                    <div class="tabpanel" role="tabpanel" id="tab-jobs" aria-labelledby="tab-jobs-btn" hidden>
+                        <div class="alert alert-info sample-note" style="margin-top:0">These are fictional example roles bundled with the app so you can see how matching works. They are not live job openings.</div>
+                        <div class="toolbar" style="margin-top:1rem">
+                            <label class="sr-only" for="jobsQuery">Search roles</label>
+                            <input id="jobsQuery" class="input" type="search" placeholder="Search by title, company or skill">
+                            <label class="sr-only" for="jobsCategory">Category</label>
+                            <select id="jobsCategory" class="select" style="min-width:180px">
+                                <option value="">All categories</option>
+                                <option>Data Science &amp; AI</option>
+                                <option>Software Engineering</option>
+                                <option>DevOps &amp; Cloud</option>
+                                <option>Cybersecurity</option>
+                                <option>Database &amp; Systems</option>
+                                <option>Product &amp; Management</option>
+                            </select>
+                            <label class="toggle"><input type="checkbox" id="jobsRemote"> Remote only</label>
                         </div>
+                        <p class="small muted" id="jobsStatus" style="margin-top:0.75rem"></p>
+                        <div class="jobs-list" id="jobsList" aria-live="polite"></div>
+                        <button type="button" class="btn btn-secondary btn-block" id="btnMoreJobs" style="margin-top:1rem" hidden>Show more</button>
+                    </div>
 
-                        <!-- Tab 4: Raw PDF Layers -->
-                        <div class="tab-pane" id="tab-raw" role="tabpanel" aria-labelledby="tabbtn-raw">
-                            <div class="text-viewer-card">
-                                <div class="viewer-toolbar">
-                                    <span class="card-caption">Exact raw text extracted from PDF stream layers</span>
-                                    <button type="button" class="btn-copy-section" id="btnCopyRaw">Copy Raw Text</button>
-                                </div>
-                                <pre class="viewer-code-pre" id="rawTextPre">SAAD ATHER ALI
-Software Engineering & Machine Learning Candidate
-Email: candidate@example.com | Karachi, Pakistan
-
-EDUCATION
-Bachelor of Science in Software Engineering, FAST-NUCES (2021 - 2025)
-Relevant Coursework: Machine Learning, Artificial Intelligence, Operating Systems, Computer Vision, Algorithms.
-
-EXPERIENCE
-Machine Learning Intern & Researcher (2024 - Present)
-- Designed and evaluated Spiking Neural Network (SNN) neuromorphic algorithms for low-power gesture classification.
-- Implemented computer vision pipelines using OpenCV and deployed REST evaluation services using Python and Flask.
-
-TECHNICAL SKILLS
-Languages: Python, SQL, C++, Java, Bash
-Frameworks: PyTorch, TensorFlow, Scikit-learn, OpenCV, Flask, Django, Docker, Git
-
-PROJECTS
-1. SNN Gesture Recognition Engine: Neuromorphic vision processor with 94.2% accuracy.
-2. Resume Match Evaluator: TF-IDF vectorization with cosine similarity scoring.
-3. Boiler Management Monitoring System: IoT automation dashboard in Python.</pre>
-                            </div>
+                    <!-- Extracted text -->
+                    <div class="tabpanel" role="tabpanel" id="tab-text" aria-labelledby="tab-text-btn" hidden>
+                        <div class="viewer">
+                            <header><span>Text extracted from your PDF</span><button type="button" class="btn btn-secondary btn-sm" id="btnCopyText">Copy</button></header>
+                            <pre id="rawText"></pre>
                         </div>
                     </div>
-                </div>
+                </section>
             </div>
         </div>
-    </main>
-    <%- include('partials/footer') %>
-    <script src="/match-visualizer.bundle.js"></script>
-    <script>
-        (function() {
-            // DOM Elements
-            const dropzone = document.getElementById('dropzone');
-            const fileInput = document.getElementById('resumeFileInput');
-            const selectedFileCard = document.getElementById('selectedFileCard');
-            const selectedFileName = document.getElementById('selectedFileName');
-            const selectedFileSize = document.getElementById('selectedFileSize');
-            const btnRemoveFile = document.getElementById('btnRemoveFile');
-            const btnParseResume = document.getElementById('btnParseResume');
-            const btnParseText = document.getElementById('btnParseText');
-            const uploadStatusBadge = document.getElementById('uploadStatusBadge');
-            const progressContainer = document.getElementById('progressContainer');
-            const progressStepText = document.getElementById('progressStepText');
-            const alertBox = document.getElementById('alertBox');
-            const jdToggleHeader = document.getElementById('jdToggleHeader');
-            const jdFieldsWrap = document.getElementById('jdFieldsWrap');
-            const jdChevron = document.getElementById('jdChevron');
-            const jobKeywordsSelect = document.getElementById('jobKeywordsSelect');
-            const jobDescriptionTextarea = document.getElementById('jobDescriptionTextarea');
-
-            // Result Metrics Elements
-            const resCategory = document.getElementById('resCategory');
-            const resFilename = document.getElementById('resFilename');
-            const resSimilarityScore = document.getElementById('resSimilarityScore');
-            const resMatchBadge = document.getElementById('resMatchBadge');
-            const resTargetRoleKicker = document.getElementById('resTargetRoleKicker');
-            const resPages = document.getElementById('resPages');
-            const resWords = document.getElementById('resWords');
-            const resChars = document.getElementById('resChars');
-
-            // Section Boxes
-            const secEducation = document.getElementById('sec-education');
-            const secExperience = document.getElementById('sec-experience');
-            const secSkills = document.getElementById('sec-skills');
-            const secProjects = document.getElementById('sec-projects');
-            const cleanedTextPre = document.getElementById('cleanedTextPre');
-            const rawTextPre = document.getElementById('rawTextPre');
-
-            // Live Matcher Elements
-            const liveJdPreset = document.getElementById('liveJdPreset');
-            const liveJdInput = document.getElementById('liveJdInput');
-            const btnComputeLiveMatch = document.getElementById('btnComputeLiveMatch');
-            const liveScoreNum = document.getElementById('liveScoreNum');
-            const liveRatingText = document.getElementById('liveRatingText');
-            const liveMatchDesc = document.getElementById('liveMatchDesc');
-            const keywordAlignmentList = document.getElementById('keywordAlignmentList');
-
-            // Job Listings Elements
-            const jobsSearchInput = document.getElementById('jobsSearchInput');
-            const jobsCategoryFilter = document.getElementById('jobsCategoryFilter');
-            const jobsSortFilter = document.getElementById('jobsSortFilter');
-            const jobsRemoteToggle = document.getElementById('jobsRemoteToggle');
-            const btnRefreshJobs = document.getElementById('btnRefreshJobs');
-            const jobsCardsContainer = document.getElementById('jobsCardsContainer');
-            const jobsStatusBanner = document.getElementById('jobsStatusBanner');
-            const jobsStatusText = document.getElementById('jobsStatusText');
-            const jobsCountBadge = document.getElementById('jobsCountBadge');
-            const jobsTabCounter = document.getElementById('jobsTabCounter');
-
-            // Pagination & Display State for All Database Jobs
-            const jobsPaginationBar = document.getElementById('jobsPaginationBar');
-            const jobsPageInfo = document.getElementById('jobsPageInfo');
-            const jobsPageCurrent = document.getElementById('jobsPageCurrent');
-            const btnJobsPrevPage = document.getElementById('btnJobsPrevPage');
-            const btnJobsNextPage = document.getElementById('btnJobsNextPage');
-            const btnJobsToggleShowAll = document.getElementById('btnJobsToggleShowAll');
-            let jobsDisplayMode = 'all'; // Default: 'all' to show all retrieved database jobs
-            let jobsCurrentPage = 1;
-            const JOBS_PAGE_SIZE = 12;
-
-            let currentFile = null;
-            let currentParsedData = null;
-            let cachedJobs = [];
-
-            function escapeHtml(str) {
-                if (str === null || str === undefined) return '';
-                return String(str)
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#39;');
-            }
-
-            function formatBytes(bytes) {
-                if (!bytes || bytes === 0) return '0 KB';
-                const k = 1024;
-                const i = Math.floor(Math.log(bytes) / Math.log(k));
-                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-            }
-
-            function showAlert(msg, isError = true) {
-                if (!alertBox) return;
-                alertBox.textContent = msg;
-                alertBox.className = 'alert-box ' + (isError ? 'error' : 'success');
-                alertBox.style.display = 'block';
-            }
-
-            function clearAlert() {
-                if (!alertBox) return;
-                alertBox.textContent = '';
-                alertBox.style.display = 'none';
-            }
-
-            // Accordion Toggle
-            if (jdToggleHeader && jdFieldsWrap) {
-                jdToggleHeader.addEventListener('click', () => {
-                    const isClosed = jdFieldsWrap.style.display === 'none';
-                    jdFieldsWrap.style.display = isClosed ? 'flex' : 'none';
-                    if (jdChevron) jdChevron.style.transform = isClosed ? 'rotate(180deg)' : 'rotate(0deg)';
-                });
-            }
-
-            // Handle File Selection
-            function handleFile(file) {
-                clearAlert();
-                if (!file) return;
-
-                if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-                    showAlert('Only PDF files (.pdf) are supported. Please select a valid resume document.');
-                    resetFileInput();
-                    return;
-                }
-
-                if (file.size > 4 * 1024 * 1024) {
-                    showAlert('File size exceeds the 4MB limit. Please upload a smaller document.');
-                    resetFileInput();
-                    return;
-                }
-
-                currentFile = file;
-                if (selectedFileName) selectedFileName.textContent = file.name;
-                if (selectedFileSize) selectedFileSize.textContent = formatBytes(file.size);
-                if (selectedFileCard) selectedFileCard.style.display = 'flex';
-                if (dropzone) dropzone.style.display = 'none';
-                if (btnParseResume) btnParseResume.disabled = false;
-                if (uploadStatusBadge) uploadStatusBadge.textContent = 'Ready to Parse';
-            }
-
-            function resetFileInput() {
-                currentFile = null;
-                if (fileInput) fileInput.value = '';
-                if (selectedFileCard) selectedFileCard.style.display = 'none';
-                if (dropzone) dropzone.style.display = 'block';
-                if (uploadStatusBadge) uploadStatusBadge.textContent = 'Ready';
-            }
-
-            if (btnRemoveFile) btnRemoveFile.addEventListener('click', resetFileInput);
-
-            if (fileInput) {
-                fileInput.addEventListener('change', (e) => {
-                    if (e.target.files && e.target.files[0]) {
-                        handleFile(e.target.files[0]);
-                    }
-                });
-            }
-
-            if (dropzone) {
-                ['dragenter', 'dragover'].forEach(eventName => {
-                    dropzone.addEventListener(eventName, (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        dropzone.classList.add('drag-over');
-                    }, false);
-                });
-
-                ['dragleave', 'drop'].forEach(eventName => {
-                    dropzone.addEventListener(eventName, (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        dropzone.classList.remove('drag-over');
-                    }, false);
-                });
-
-                dropzone.addEventListener('drop', (e) => {
-                    const dt = e.dataTransfer;
-                    if (dt && dt.files && dt.files[0]) {
-                        handleFile(dt.files[0]);
-                    }
-                });
-            }
-            // Browse button triggers the hidden file input
-            const btnBrowseFile = document.getElementById('btnBrowseFile');
-            if (btnBrowseFile && fileInput) {
-                btnBrowseFile.addEventListener('click', () => fileInput.click());
-            }
-            // Dropzone also clickable (for mouse users clicking non-button area)
-            if (dropzone) {
-                dropzone.addEventListener('click', (e) => {
-                    if (e.target !== btnBrowseFile) fileInput && fileInput.click();
-                });
-            }
-            // Keyboard operability for dropzone (now just the browse button handles it)
-
-            // Upload and Parse File via API
-            async function uploadAndParseResume() {
-                if (!currentFile) return;
-
-                clearAlert();
-                setLoadingState(true, 'Uploading PDF & extracting text layers...');
-
-                try {
-                    const formData = new FormData();
-                    formData.append('resume', currentFile);
-
-                    const jdText = jobDescriptionTextarea ? jobDescriptionTextarea.value.trim() : '';
-                    const jdKeywords = jobKeywordsSelect ? jobKeywordsSelect.value : '';
-                    if (jdText) formData.append('job_description_text', jdText);
-                    if (jdKeywords) formData.append('job_keywords', jdKeywords);
-
-                    const res = await fetch('/api/parse-resume', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || 'Failed to parse resume document.');
-                    }
-
-                    renderParsedResults(data);
-                } catch (err) {
-                    console.error('Parse error:', err);
-                    showAlert(err.message);
-                } finally {
-                    setLoadingState(false);
-                }
-            }
-
-            if (btnParseResume) btnParseResume.addEventListener('click', uploadAndParseResume);
-
-            // Quick Samples Delegation
-            document.querySelectorAll('.sample-chip').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('.sample-chip').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-
-                    const sampleName = btn.getAttribute('data-sample');
-                    const sampleRole = btn.getAttribute('data-role');
-                    if (sampleRole && jobKeywordsSelect) {
-                        jobKeywordsSelect.value = sampleRole;
-                    }
-                    parseSampleFile(sampleName, sampleRole);
-                });
-            });
-
-            async function parseSampleFile(sampleName, roleKeywords, isSamplePreview = false) {
-                clearAlert();
-                setLoadingState(true, `Loading sample (${escapeHtml(sampleName)})...`);
-
-                try {
-                    const jdText = jobDescriptionTextarea ? jobDescriptionTextarea.value.trim() : '';
-                    const jdKeywords = roleKeywords || (jobKeywordsSelect ? jobKeywordsSelect.value : '');
-
-                    const res = await fetch('/api/parse-sample', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sampleName,
-                            job_description_text: jdText,
-                            job_keywords: jdKeywords,
-                            isSamplePreview
-                        })
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || 'Failed to parse sample file.');
-                    }
-
-                    renderParsedResults(data);
-                } catch (err) {
-                    console.error('Sample parse error:', err);
-                    showAlert(err.message);
-                } finally {
-                    setLoadingState(false);
-                }
-            }
-
-            function setLoadingState(loading, text = 'Processing...') {
-                if (loading) {
-                    if (btnParseResume) btnParseResume.disabled = true;
-                    if (btnParseText) btnParseText.textContent = 'Parsing...';
-                    if (progressContainer) progressContainer.style.display = 'block';
-                    if (progressStepText) progressStepText.textContent = text;
-                    if (uploadStatusBadge) uploadStatusBadge.textContent = 'Analyzing';
-                    const srAnn = document.getElementById('srAnnouncer');
-                    if (srAnn) srAnn.textContent = text;
-                } else {
-                    if (btnParseResume) btnParseResume.disabled = !currentFile;
-                    if (btnParseText) btnParseText.textContent = 'Evaluate & Parse Resume';
-                    if (progressContainer) progressContainer.style.display = 'none';
-                    if (uploadStatusBadge) uploadStatusBadge.textContent = 'Ready';
-                }
-            }
-
-            // Render Parsed Data into Dashboard Viewport
-            function renderParsedResults(data) {
-                currentParsedData = data;
-
-                // 1. Metric Scorecards
-                if (resCategory) resCategory.textContent = data.category || 'Career Role';
-                if (resFilename) resFilename.textContent = data.filename || 'Candidate Resume';
-                if (resPages) resPages.textContent = `${data.stats?.pageCount || data.pages || 1} page`;
-                if (resWords) resWords.textContent = (data.stats?.wordCount || 480).toLocaleString();
-                if (resChars) resChars.textContent = (data.stats?.characterCount || 3400).toLocaleString();
-
-                const score = data.match?.similarityScore !== undefined ? data.match.similarityScore : 0.85;
-                const rating = data.match?.matchRating || 'High Match';
-
-                if (resSimilarityScore) resSimilarityScore.textContent = Number(score).toFixed(2);
-                if (resMatchBadge) {
-                    resMatchBadge.textContent = rating;
-                    resMatchBadge.className = 'status-badge ' + (rating.includes('High') ? 'high' : rating.includes('Medium') ? 'medium' : 'low');
-                    resMatchBadge.setAttribute('aria-label', 'Match rating: ' + rating);
-                }
-                if (resTargetRoleKicker) {
-                    resTargetRoleKicker.textContent = `vs. ${data.match?.targetJob || data.category || 'Benchmark'}`;
-                }
-
-                // 2. Sections
-                const sections = data.sections || {};
-                renderSectionBox(secEducation, sections.Education, 'Education');
-                renderSectionBox(secExperience, sections.Experience, 'Work Experience');
-                renderSectionBox(secSkills, sections.Skills, 'Technical Skills');
-                renderSectionBox(secProjects, sections.Projects, 'Projects & Systems');
-
-                // 3. Text Previews
-                if (cleanedTextPre) cleanedTextPre.textContent = data.cleanedText || 'No cleaned text available.';
-                if (rawTextPre) rawTextPre.textContent = data.rawText || 'No raw text available.';
-
-                // 4. Live Matcher Sync
-                if (liveScoreNum) liveScoreNum.textContent = Number(score).toFixed(2);
-                if (liveRatingText) {
-                    liveRatingText.textContent = rating;
-                    liveRatingText.style.color = rating.includes('High') ? '#16a34a' : rating.includes('Medium') ? '#d97706' : '#dc2626';
-                }
-                if (liveMatchDesc) {
-                    liveMatchDesc.textContent = `${Math.round(score * 100)}% vector alignment against ${data.match?.targetJob || data.category || 'Job'} requirements.`;
-                }
-
-                if (data.match?.keywordAlignment && keywordAlignmentList) {
-                    keywordAlignmentList.innerHTML = data.match.keywordAlignment.slice(0, 8).map(kw => `
-                        <div class="keyword-item ${kw.matched ? 'matched' : 'missing'}">
-                            <span>${escapeHtml(kw.keyword)}</span>
-                            <span style="font-family: monospace; font-weight: bold; color: ${kw.matched ? '#16a34a' : '#dc2626'};">${kw.matched ? 'Matched' : 'Missing'}</span>
-                        </div>
-                    `).join('');
-                }
-
-                // 5. Mount Recharts Component
-                if (window.renderMatchVisualizer) {
-                    window.renderMatchVisualizer('recharts-match-container', data);
-                }
-                // Update accessible data table to match radar chart
-                const radarBody = document.getElementById('radarAltTableBody');
-                if (radarBody && data.match && data.match.dimensions) {
-                    radarBody.innerHTML = data.match.dimensions.map(d =>
-                        '<tr><td>' + d.dimension + '</td><td>' + d.score + '</td><td>' + d.target + '</td></tr>'
-                    ).join('');
-                    const radarTable = document.getElementById('radarAltTable');
-                    if (radarTable) {
-                        radarTable.setAttribute('aria-label',
-                            'Match competency scores for ' + (data.match.targetJob || data.category || 'role'));
-                    }
-                }
-
-                // 6. Sync and rank live Job Listings against this candidate's resume
-                if (typeof fetchAndRenderJobs === 'function') {
-                    fetchAndRenderJobs();
-                }
-            }
-
-            function renderSectionBox(el, content, fallbackName) {
-                if (!el) return;
-                if (!content || content.toLowerCase().includes('not found')) {
-                    el.textContent = `${fallbackName} section not explicitly detected in this document.`;
-                    el.classList.add('empty');
-                } else {
-                    el.textContent = content;
-                    el.classList.remove('empty');
-                }
-            }
-
-            // Tab Navigation — ARIA tabs pattern with roving tabindex and arrow-key support
-            const tabBtns = Array.from(document.querySelectorAll('[role="tab"]'));
-            const tabPanes = Array.from(document.querySelectorAll('[role="tabpanel"]'));
-
-            function activateTab(btn) {
-                const targetId = btn.getAttribute('data-tab');
-                tabBtns.forEach(b => {
-                    b.classList.remove('active');
-                    b.setAttribute('aria-selected', 'false');
-                    b.setAttribute('tabindex', '-1');
-                });
-                tabPanes.forEach(p => {
-                    p.classList.remove('active');
-                    p.setAttribute('aria-hidden', 'true');
-                    p.setAttribute('inert', '');
-                });
-                btn.classList.add('active');
-                btn.setAttribute('aria-selected', 'true');
-                btn.setAttribute('tabindex', '0');
-                const pane = document.getElementById(targetId);
-                if (pane) {
-                    pane.classList.add('active');
-                    pane.setAttribute('aria-hidden', 'false');
-                    pane.removeAttribute('inert');
-                }
-                const srAnnouncer = document.getElementById('srAnnouncer');
-                if (srAnnouncer) srAnnouncer.textContent = btn.textContent.trim() + ' tab selected';
-                window.dispatchEvent(new Event('resize'));
-                if (targetId === 'tab-recharts' && currentParsedData && window.renderMatchVisualizer) {
-                    window.renderMatchVisualizer('recharts-match-container', currentParsedData);
-                }
-                if (targetId === 'tab-jobs' && (!cachedJobs || cachedJobs.length === 0) && typeof fetchAndRenderJobs === 'function') {
-                    fetchAndRenderJobs();
-                }
-            }
-
-            tabBtns.forEach(btn => {
-                btn.addEventListener('click', () => activateTab(btn));
-                btn.addEventListener('keydown', (e) => {
-                    const idx = tabBtns.indexOf(btn);
-                    let next = null;
-                    if (e.key === 'ArrowRight') { next = tabBtns[(idx + 1) % tabBtns.length]; }
-                    if (e.key === 'ArrowLeft')  { next = tabBtns[(idx - 1 + tabBtns.length) % tabBtns.length]; }
-                    if (e.key === 'Home')        { next = tabBtns[0]; }
-                    if (e.key === 'End')         { next = tabBtns[tabBtns.length - 1]; }
-                    if (next) { e.preventDefault(); activateTab(next); next.focus(); }
-                });
-            });
-
-            // Top Header Nav Tab Links
-            document.querySelectorAll('.nav-tab-link').forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const tabTarget = link.getAttribute('data-tab-target');
-                    const matchingTabBtn = document.querySelector(`.tab-btn[data-tab="${tabTarget}"]`);
-                    if (matchingTabBtn) {
-                        matchingTabBtn.click();
-                        matchingTabBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                });
-            });
-
-            // 1-Click Copy Buttons
-            document.querySelectorAll('.btn-copy-section').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const targetId = btn.getAttribute('data-target');
-                    let text = '';
-                    if (targetId) {
-                        const targetEl = document.getElementById(targetId);
-                        text = targetEl ? targetEl.textContent : '';
-                    } else if (btn.id === 'btnCopyCleaned') {
-                        text = cleanedTextPre ? cleanedTextPre.textContent : '';
-                    } else if (btn.id === 'btnCopyRaw') {
-                        text = rawTextPre ? rawTextPre.textContent : '';
-                    }
-
-                    if (text) {
-                        navigator.clipboard.writeText(text).then(() => {
-                            const original = btn.textContent;
-                            btn.textContent = 'Copied!';
-                            setTimeout(() => { btn.textContent = original; }, 1500);
-                        }).catch(err => console.error('Copy failed:', err));
-                    }
-                });
-            });
-
-            // Live Match Preset Change
-            if (liveJdPreset) {
-                liveJdPreset.addEventListener('change', () => {
-                    if (liveJdPreset.value && liveJdInput) {
-                        liveJdInput.value = liveJdPreset.value;
-                        // Trigger immediate live re-evaluation
-                        if (btnComputeLiveMatch) btnComputeLiveMatch.click();
-                    }
-                });
-            }
-
-            if (btnComputeLiveMatch) {
-                btnComputeLiveMatch.addEventListener('click', async () => {
-                    if (!currentParsedData || !currentParsedData.rawText) {
-                        showAlert('Please parse a resume PDF first.');
-                        return;
-                    }
-
-                    const jd = liveJdInput ? liveJdInput.value.trim() : '';
-                    if (!jd) {
-                        showAlert('Please enter job description text or select a role preset.');
-                        return;
-                    }
-
-                    btnComputeLiveMatch.disabled = true;
-                    btnComputeLiveMatch.textContent = 'Evaluating...';
-
-                    try {
-                        const res = await fetch('/api/evaluate-match', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                resumeText: currentParsedData.rawText,
-                                jobDescriptionText: jd,
-                                resumeSections: currentParsedData.sections
-                            })
-                        });
-
-                        const data = await res.json();
-                        if (!res.ok || !data.success) {
-                            throw new Error(data.error || 'Evaluation failed.');
-                        }
-
-                        if (liveScoreNum) liveScoreNum.textContent = Number(data.similarityScore).toFixed(2);
-                        if (liveRatingText) {
-                            liveRatingText.textContent = data.matchRating;
-                            liveRatingText.style.color = data.matchRating.includes('High') ? '#16a34a' : data.matchRating.includes('Medium') ? '#d97706' : '#dc2626';
-                        }
-                        if (liveMatchDesc) {
-                            liveMatchDesc.textContent = `${data.percentage}% vector alignment against current requirements.`;
-                        }
-
-                        if (resSimilarityScore) resSimilarityScore.textContent = Number(data.similarityScore).toFixed(2);
-                        if (resMatchBadge) {
-                            resMatchBadge.textContent = data.matchRating;
-                            resMatchBadge.className = 'status-badge ' + (data.matchRating.includes('High') ? 'high' : data.matchRating.includes('Medium') ? 'medium' : 'low');
-                        }
-
-                        if (data.keywordAlignment && keywordAlignmentList) {
-                            keywordAlignmentList.innerHTML = data.keywordAlignment.slice(0, 8).map(kw => `
-                                <div class="keyword-item ${kw.matched ? 'matched' : 'missing'}">
-                                    <span>${escapeHtml(kw.keyword)}</span>
-                                    <span style="font-family: monospace; font-weight: bold; color: ${kw.matched ? '#16a34a' : '#dc2626'};">${kw.matched ? 'Matched' : 'Missing'}</span>
-                                </div>
-                            `).join('');
-                        }
-
-                        // Update global Recharts data
-                        currentParsedData.match = {
-                            ...data,
-                            targetJob: jd.length > 40 ? jd.substring(0, 40) + '...' : jd
-                        };
-
-                        if (window.renderMatchVisualizer) {
-                            window.renderMatchVisualizer('recharts-match-container', currentParsedData);
-                        }
-                    } catch (err) {
-                        showAlert(err.message);
-                    } finally {
-                        btnComputeLiveMatch.disabled = false;
-                        btnComputeLiveMatch.textContent = 'Evaluate Match Score';
-                    }
-                });
-            }
-
-            // ==========================================
-            // Job Listings (Sample Dataset)
-            // ==========================================
-            let jobsDebounceTimer = null;
-
-            function getJobSalaryValue(salaryStr) {
-                if (!salaryStr) return 0;
-                const matches = salaryStr.match(/\$([0-9,]+)/g);
-                if (!matches || matches.length === 0) return 0;
-                const lastNum = parseInt(matches[matches.length - 1].replace(/[$,]/g, ''), 10);
-                return isNaN(lastNum) ? 0 : lastNum;
-            }
-
-            async function fetchAndRenderJobs() {
-                if (!jobsCardsContainer) return;
-
-                const query = jobsSearchInput ? jobsSearchInput.value.trim() : '';
-                const category = jobsCategoryFilter ? jobsCategoryFilter.value : '';
-                const remote = jobsRemoteToggle ? jobsRemoteToggle.checked : false;
-                const resumeText = (currentParsedData && currentParsedData.rawText) ? currentParsedData.rawText : '';
-
-                if (jobsStatusText) {
-                    jobsStatusText.textContent = resumeText 
-                        ? 'Scoring sample job listings against parsed resume...' 
-                        : 'Loading sample job dataset...';
-                }
-
-                try {
-                    const res = await fetch('/api/jobs', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            query,
-                            category,
-                            remote,
-                            resumeText
-                        })
-                    });
-
-                    const data = await res.json();
-                    if (!res.ok || !data.success) {
-                        throw new Error(data.error || 'Failed to fetch jobs.');
-                    }
-
-                    cachedJobs = data.jobs || [];
-                    renderJobsList(cachedJobs, data.hasResumeMatch);
-                } catch (err) {
-                    console.error('Job fetch error:', err);
-                    if (jobsCardsContainer) {
-                        jobsCardsContainer.innerHTML = `
-                            <div style="text-align: center; padding: 2.5rem; color: #dc2626; font-size: 0.8125rem; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;">
-                                <p style="font-weight: 600; margin-bottom: 0.35rem;">Unable to load job listings</p>
-                                <p style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.75rem;">${err.message}</p>
-                                <button type="button" class="btn-job-action secondary" onclick="window.fetchAndRenderJobs()" style="margin: 0 auto;">Retry</button>
-                            </div>
-                        `;
-                    }
-                }
-            }
-
-            function renderJobsList(jobs, hasResumeMatch = false) {
-                if (!jobsCardsContainer) return;
-
-                const sortMode = jobsSortFilter ? jobsSortFilter.value : 'match';
-                let sorted = [...jobs];
-
-                if (sortMode === 'salary') {
-                    sorted.sort((a, b) => getJobSalaryValue(b.salary) - getJobSalaryValue(a.salary));
-                } else if (sortMode === 'recent') {
-                    // default order from API
-                } else {
-                    if (hasResumeMatch || (sorted.length > 0 && sorted[0].similarityScore !== undefined)) {
-                        sorted.sort((a, b) => (b.similarityScore || 0) - (a.similarityScore || 0));
-                    }
-                }
-
-                if (jobsCountBadge) jobsCountBadge.textContent = `${sorted.length} ${sorted.length === 1 ? 'Position' : 'Positions'}`;
-                if (jobsTabCounter) jobsTabCounter.textContent = `${sorted.length}`;
-
-                if (jobsStatusBanner && jobsStatusText) {
-                    if (currentParsedData && currentParsedData.rawText) {
-                        jobsStatusText.innerHTML = `<strong>ATS Match Active:</strong> Evaluated all ${sorted.length} positions against <em>${escapeHtml(currentParsedData.filename || 'Candidate Resume')}</em> (${escapeHtml(currentParsedData.category || 'Career Role')}).`;
-                    } else {
-                        jobsStatusText.innerHTML = `Displaying all ${sorted.length} tech positions from database. <em>Upload or select a resume on the left</em> to activate live TF-IDF vector match scoring.`;
-                    }
-                }
-
-                if (sorted.length === 0) {
-                    if (jobsPaginationBar) jobsPaginationBar.style.display = 'none';
-                    jobsCardsContainer.innerHTML = `
-                        <div style="text-align: center; padding: 3rem 1.5rem; background: #fafafa; border: 1px solid var(--border-hairline); border-radius: 8px;">
-                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="color: var(--text-muted); margin: 0 auto 0.75rem;">
-                                <circle cx="11" cy="11" r="8"></circle>
-                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                            </svg>
-                            <h4 style="font-size: 0.9375rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.35rem;">No matching job openings found</h4>
-                            <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 1rem;">Try clearing your search query or broadening category filters.</p>
-                            <button type="button" class="btn-job-action secondary" id="btnResetJobFilters" style="margin: 0 auto;">Reset Filters</button>
-                        </div>
-                    `;
-                    const resetBtn = document.getElementById('btnResetJobFilters');
-                    if (resetBtn) {
-                        resetBtn.addEventListener('click', () => {
-                            if (jobsSearchInput) jobsSearchInput.value = '';
-                            if (jobsCategoryFilter) jobsCategoryFilter.value = '';
-                            if (jobsRemoteToggle) jobsRemoteToggle.checked = false;
-                            jobsCurrentPage = 1;
-                            fetchAndRenderJobs();
-                        });
-                    }
-                    return;
-                }
-
-                // Manage display mode & pagination slices
-                let displayJobs = sorted;
-                if (jobsPaginationBar) {
-                    jobsPaginationBar.style.display = 'flex';
-                    if (jobsDisplayMode === 'all') {
-                        displayJobs = sorted;
-                        if (jobsPageInfo) jobsPageInfo.textContent = `Displaying all ${sorted.length} positions retrieved from database`;
-                        if (jobsPageCurrent) jobsPageCurrent.textContent = `All ${sorted.length} visible`;
-                        if (btnJobsPrevPage) btnJobsPrevPage.style.display = 'none';
-                        if (btnJobsNextPage) btnJobsNextPage.style.display = 'none';
-                        if (btnJobsToggleShowAll) {
-                            btnJobsToggleShowAll.textContent = sorted.length > JOBS_PAGE_SIZE ? `Paginate (${JOBS_PAGE_SIZE}/page)` : `Showing All (${sorted.length})`;
-                            btnJobsToggleShowAll.classList.add('active-toggle');
-                        }
-                    } else {
-                        const totalPages = Math.ceil(sorted.length / JOBS_PAGE_SIZE) || 1;
-                        if (jobsCurrentPage > totalPages) jobsCurrentPage = 1;
-                        const startIdx = (jobsCurrentPage - 1) * JOBS_PAGE_SIZE;
-                        displayJobs = sorted.slice(startIdx, startIdx + JOBS_PAGE_SIZE);
-
-                        if (jobsPageInfo) jobsPageInfo.textContent = `Showing positions ${startIdx + 1}–${Math.min(startIdx + JOBS_PAGE_SIZE, sorted.length)} of ${sorted.length} in database`;
-                        if (jobsPageCurrent) {
-                            jobsPageCurrent.textContent = `Page ${jobsCurrentPage} of ${totalPages}`;
-                            jobsPageCurrent.style.display = 'inline-block';
-                        }
-                        if (btnJobsPrevPage) {
-                            btnJobsPrevPage.style.display = 'inline-flex';
-                            btnJobsPrevPage.disabled = jobsCurrentPage <= 1;
-                        }
-                        if (btnJobsNextPage) {
-                            btnJobsNextPage.style.display = 'inline-flex';
-                            btnJobsNextPage.disabled = jobsCurrentPage >= totalPages;
-                        }
-                        if (btnJobsToggleShowAll) {
-                            btnJobsToggleShowAll.textContent = `Display All (${sorted.length})`;
-                            btnJobsToggleShowAll.classList.remove('active-toggle');
-                        }
-                    }
-                }
-
-                const candidateFullText = (currentParsedData ? `${currentParsedData.rawText || ''} ${currentParsedData.cleanedText || ''} ${JSON.stringify(currentParsedData.sections || {})}` : '').toLowerCase();
-
-                jobsCardsContainer.innerHTML = displayJobs.map(job => {
-                    const matchScore = job.matchPercentage !== undefined ? job.matchPercentage : null;
-                    const rating = job.matchRating || (matchScore >= 75 ? 'High Match' : matchScore >= 45 ? 'Medium Match' : 'Low Match');
-                    const pillClass = matchScore !== null ? (rating.includes('High') ? 'high' : rating.includes('Medium') ? 'medium' : 'low') : 'neutral';
-
-                    const skillsHtml = (job.skills || []).map(skill => {
-                        const cleanSkill = skill.toLowerCase().trim();
-                        const isSkillMatched = candidateFullText && cleanSkill.length > 1 && (
-                            candidateFullText.includes(cleanSkill) || 
-                            candidateFullText.includes(cleanSkill.replace(/[^a-z0-9]/g, ''))
-                        );
-                        return `
-                            <span class="job-skill-chip ${isSkillMatched ? 'matched' : ''}" title="${isSkillMatched ? 'Matched in candidate profile' : 'Required skill'}">
-                                ${isSkillMatched ? '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>' : ''}
-                                ${escapeHtml(skill)}
-                            </span>
-                        `;
-                    }).join('');
-
-                    return `
-                        <div class="job-card" data-job-id="${escapeHtml(job.id)}">
-                            <div class="job-card-header">
-                                <div class="job-card-title-group">
-                                    <div class="job-company-avatar">
-                                        ${escapeHtml(job.companyInitial || (job.company ? job.company.charAt(0) : 'J'))}
-                                    </div>
-                                    <div>
-                                        <h3 class="job-title-text">${escapeHtml(job.title)}</h3>
-                                        <div class="job-company-meta">
-                                            <span style="font-weight: 600; color: var(--text-primary);">${escapeHtml(job.company)}</span>
-                                            <span>·</span>
-                                            <span>
-                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: inline; vertical-align: -1px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                                                ${escapeHtml(job.location)}
-                                            </span>
-                                            <span>·</span>
-                                            <span class="job-tag remote">${escapeHtml(job.remoteText || (job.remote ? 'Remote' : 'On-Site'))}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="job-match-badge-box">
-                                    ${matchScore !== null ? `
-                                        <span class="job-match-pill ${pillClass}">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                                            ${matchScore}% Match · ${escapeHtml(rating)}
-                                        </span>
-                                        <div class="job-meter-bar">
-                                            <div class="job-meter-fill" style="width: ${matchScore}%; background: ${pillClass === 'high' ? '#16a34a' : pillClass === 'medium' ? '#d97706' : '#dc2626'};"></div>
-                                        </div>
-                                    ` : `
-                                        <span class="job-match-pill neutral" title="Upload a resume on the left to see ATS vector match">
-                                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-                                            Match on Parse
-                                        </span>
-                                    `}
-                                </div>
-                            </div>
-
-                            <div class="job-tags-row">
-                                <span class="job-tag">${escapeHtml(job.category)}</span>
-                                <span class="job-tag">${escapeHtml(job.employmentType)}</span>
-                                <span class="job-tag">${escapeHtml(job.experienceLevel)}</span>
-                                <span class="job-tag salary">${escapeHtml(job.salary)}</span>
-                                <span class="job-tag" style="color: var(--text-muted);">${escapeHtml(job.postedAt)}</span>
-                                <span class="job-tag" style="background: #ffffff; border-color: var(--border-hairline); color: var(--accent-primary);">Sample Dataset</span>
-                            </div>
-
-                            <p class="job-description-text">${escapeHtml(job.description)}</p>
-
-                            <div>
-                                <div style="font-size: 0.6875rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem;">
-                                    Key Competencies & Keywords:
-                                </div>
-                                <div class="job-skills-chips">
-                                    ${skillsHtml}
-                                </div>
-                            </div>
-
-                            <div class="job-card-actions">
-                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                    <button type="button" class="btn-job-action primary btn-evaluate-role" data-job-id="${escapeHtml(job.id)}">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                                        Evaluate in Role Matcher
-                                    </button>
-                                    <button type="button" class="btn-job-action secondary btn-copy-job-reqs" data-job-id="${escapeHtml(job.id)}">
-                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                                        Copy Requirements
-                                    </button>
-                                </div>
-
-                                <a href="${escapeHtml(job.applyUrl && /^https?:\/\//i.test(job.applyUrl) ? job.applyUrl : '#')}" target="_blank" rel="noopener noreferrer" class="btn-job-action secondary" style="color: var(--accent-primary);">
-                                    <span>Apply on Company Site</span>
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-                                </a>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-
-                // Action Event Listeners
-                jobsCardsContainer.querySelectorAll('.btn-evaluate-role').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const jobId = btn.getAttribute('data-job-id');
-                        const targetJob = cachedJobs.find(j => j.id === jobId);
-                        if (!targetJob) return;
-
-                        const matcherTabBtn = document.querySelector('.tab-btn[data-tab="tab-matcher"]');
-                        if (matcherTabBtn) matcherTabBtn.click();
-
-                        if (liveJdPreset) liveJdPreset.value = '';
-                        if (liveJdInput) {
-                            liveJdInput.value = `${targetJob.title} (${targetJob.company})\n\nRequired Skills:\n${targetJob.skills.join(', ')}\n\nJob Description:\n${targetJob.description}`;
-                        }
-
-                        if (currentParsedData && currentParsedData.rawText && btnComputeLiveMatch) {
-                            btnComputeLiveMatch.click();
-                        } else {
-                            showAlert(`Loaded "${targetJob.title}" into Role Matcher. Please upload a resume on the left to evaluate!`, false);
-                        }
-
-                        const resultsPanel = document.getElementById('resultsPanel');
-                        if (resultsPanel) resultsPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    });
-                });
-
-                jobsCardsContainer.querySelectorAll('.btn-copy-job-reqs').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const jobId = btn.getAttribute('data-job-id');
-                        const targetJob = cachedJobs.find(j => j.id === jobId);
-                        if (!targetJob) return;
-
-                        const textToCopy = `${targetJob.title} - ${targetJob.company}\nLocation: ${targetJob.location} (${targetJob.remoteText})\nSalary: ${targetJob.salary}\nSkills: ${targetJob.skills.join(', ')}\n\n${targetJob.description}\n\nApply URL: ${targetJob.applyUrl}`;
-
-                        navigator.clipboard.writeText(textToCopy).then(() => {
-                            const origHtml = btn.innerHTML;
-                            btn.innerHTML = `<span style="color: #16a34a; font-weight: bold;">Copied!</span>`;
-                            setTimeout(() => { btn.innerHTML = origHtml; }, 1800);
-                        });
-                    });
-                });
-            }
-
-            window.fetchAndRenderJobs = fetchAndRenderJobs;
-
-            if (btnJobsToggleShowAll) {
-                btnJobsToggleShowAll.addEventListener('click', () => {
-                    jobsDisplayMode = jobsDisplayMode === 'all' ? 'paged' : 'all';
-                    renderJobsList(cachedJobs, !!(currentParsedData && currentParsedData.rawText));
-                });
-            }
-
-            if (btnJobsPrevPage) {
-                btnJobsPrevPage.addEventListener('click', () => {
-                    if (jobsCurrentPage > 1) {
-                        jobsCurrentPage--;
-                        renderJobsList(cachedJobs, !!(currentParsedData && currentParsedData.rawText));
-                        const tabJobs = document.getElementById('tab-jobs');
-                        if (tabJobs) tabJobs.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                });
-            }
-
-            if (btnJobsNextPage) {
-                btnJobsNextPage.addEventListener('click', () => {
-                    const totalPages = Math.ceil(cachedJobs.length / JOBS_PAGE_SIZE) || 1;
-                    if (jobsCurrentPage < totalPages) {
-                        jobsCurrentPage++;
-                        renderJobsList(cachedJobs, !!(currentParsedData && currentParsedData.rawText));
-                        const tabJobs = document.getElementById('tab-jobs');
-                        if (tabJobs) tabJobs.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                });
-            }
-
-            if (jobsSearchInput) {
-                jobsSearchInput.addEventListener('input', () => {
-                    clearTimeout(jobsDebounceTimer);
-                    jobsCurrentPage = 1;
-                    jobsDebounceTimer = setTimeout(fetchAndRenderJobs, 250);
-                });
-            }
-
-            if (jobsCategoryFilter) {
-                jobsCategoryFilter.addEventListener('change', () => {
-                    jobsCurrentPage = 1;
-                    fetchAndRenderJobs();
-                });
-            }
-
-            if (jobsSortFilter) {
-                jobsSortFilter.addEventListener('change', () => {
-                    renderJobsList(cachedJobs, !!(currentParsedData && currentParsedData.rawText));
-                });
-            }
-
-            if (jobsRemoteToggle) {
-                jobsRemoteToggle.addEventListener('change', () => {
-                    jobsCurrentPage = 1;
-                    fetchAndRenderJobs();
-                });
-            }
-
-            if (btnRefreshJobs) {
-                btnRefreshJobs.addEventListener('click', () => {
-                    jobsCurrentPage = 1;
-                    fetchAndRenderJobs();
-                });
-            }
-
-            // ==========================================
-            // State Initialization on Page Load
-            // ==========================================
-            // DOMContentLoaded has already fired by the time this inline script
-            // runs (script is at end of body). Call directly.
-            fetchAndRenderJobs();
-            parseSampleFile('Saads_CV_Resume.pdf', 'Data Scientist, Machine Learning, Python, SQL, Statistics, Modeling', true);
-        })();
-    </script>
+    </div>
+</main>
+
+<%- include('partials/footer') %>
+<script src="<%= asset('/match-visualizer.bundle.js') %>" defer></script>
+<script src="<%= asset('/js/app.js') %>" defer></script>
 </body>
 </html>

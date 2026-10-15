@@ -1,1494 +1,356 @@
 import './src/polyfills.js';
-import * as pdfjsWorker from 'pdfjs-dist/legacy/build/pdf.worker.mjs';
-if (pdfjsWorker && (pdfjsWorker.WorkerMessageHandler || pdfjsWorker.default?.WorkerMessageHandler)) {
-  globalThis.pdfjsWorker = pdfjsWorker;
-}
 import express from 'express';
-import ejs from 'ejs';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
-import { fileURLToPath } from 'url';
-import { createRequire } from 'module';
+import crypto from 'crypto';
+import { fileURLToPath, pathToFileURL } from 'url';
 import { db } from './src/db/index.js';
-import { checkSubscriptionAndQuota } from './src/services/billing.js';
 import { jobsService } from './src/services/jobs.js';
-import { apiLimiter, uploadLimiter, getSafeErrorMessage, validatePdfMagicBytes, cleanupFile } from './src/middleware/security.js';
+import { scoreMatch, atsChecks } from './src/services/nlp.js';
+import { analyzeResume, UnreadablePdfError } from './src/services/resumeParser.js';
+import { authConfigured, verifyAccessToken, bearerToken } from './src/services/auth.js';
 import {
-  isAdminRequest,
-  requireAdminAuth,
-  getAdminUser,
-  getAdminSubscription,
-  isGlobalAdminOverrideActive,
-  setGlobalAdminOverride,
-  ADMIN_EMAIL
-} from './src/middleware/admin.js';
+  sessionMiddleware, sessionsEnabled, setSessionCookie, clearSessionCookie
+} from './src/middleware/session.js';
+import {
+  apiLimiter, uploadLimiter, authLimiter, getSafeErrorMessage, isPdfBuffer,
+  securityHeaders, sameOriginGuard
+} from './src/middleware/security.js';
+import { requireAdminAuth, isAdminEmail } from './src/middleware/admin.js';
 
-const require = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const isProduction = process.env.NODE_ENV === 'production';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const isProduction = process.env.NODE_ENV === 'production';
-const isDevMode = !isProduction;
-
-// Trust 1 hop reverse proxy for accurate client IP resolution behind load balancers/Cloud Run/Vercel
+app.disable('x-powered-by');
+// One reverse-proxy hop (Vercel / load balancer) for accurate client IPs.
 app.set('trust proxy', 1);
-
-// Vercel / Serverless Read-Only File System Compatibility
-const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
-const bundledUploadsDir = path.join(__dirname, 'uploads');
-const writableUploadsDir = isServerless ? path.join(os.tmpdir(), 'resume_rater_uploads') : bundledUploadsDir;
-
-try {
-  if (!fs.existsSync(writableUploadsDir)) {
-    fs.mkdirSync(writableUploadsDir, { recursive: true });
-  }
-} catch (err) {
-  console.warn('Notice: Writable uploads directory warning:', err.message);
-}
-
-// Helper to resolve resume file across writable /tmp, bundled repository, and current working directory
-function resolveResumePath(filename) {
-  const safeName = path.basename(filename);
-  
-  // 1. Check writable directory
-  const writablePath = path.join(writableUploadsDir, safeName);
-  if (fs.existsSync(writablePath)) return writablePath;
-
-  // 2. Check bundled uploads directory
-  const bundledPath = path.join(bundledUploadsDir, safeName);
-  if (fs.existsSync(bundledPath)) return bundledPath;
-
-  // 3. Check process.cwd() uploads directory (Vercel lambda bundle root)
-  const cwdPath = path.join(process.cwd(), 'uploads', safeName);
-  if (fs.existsSync(cwdPath)) return cwdPath;
-
-  return writablePath;
-}
-
-// Multer setup using writable directory (/tmp on Vercel)
-// NOTE: Vercel serverless functions have a 4.5 MB request body limit.
-// Multer limit is set to 4 MB to stay safely under that ceiling.
-const UPLOAD_SIZE_LIMIT_BYTES = 4 * 1024 * 1024; // 4 MB
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, writableUploadsDir);
-  },
-  filename: (req, file, cb) => {
-    // Sanitize filename
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, `${Date.now()}_${safeName}`);
-  }
-});
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: UPLOAD_SIZE_LIMIT_BYTES,
-    files: 1
-  }
-});
-
 app.set('view engine', 'ejs');
-const candidateViewsDirs = [
-  path.join(process.cwd(), 'views'),
-  path.join(__dirname, 'views'),
-  path.join(__dirname, '..', 'views'),
-  path.join('/var/task', 'views'),
-  path.resolve('views')
-];
-// Deduplicate by real path — EJS renders includes once per views dir entry,
-// so duplicate paths cause partials to be rendered multiple times.
-const seenViewPaths = new Set();
-const validViewsDirs = candidateViewsDirs.filter(d => {
-  try {
-    if (!fs.existsSync(d)) return false;
-    const real = fs.realpathSync(d);
-    if (seenViewPaths.has(real)) return false;
-    seenViewPaths.add(real);
-    return true;
-  } catch { return false; }
+app.set('views', path.join(__dirname, 'views'));
+
+const UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024; // Vercel's request body ceiling is 4.5 MB
+const MAX_JOB_TEXT_CHARS = 20_000;
+const MAX_MATCH_TEXT_CHARS = 200_000;
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: UPLOAD_LIMIT_BYTES, files: 1 }
 });
-// EJS needs a single string (or deduplicated array with exactly one real path)
-const ejsViewsDir = validViewsDirs[0] || path.join(process.cwd(), 'views');
-app.set('views', ejsViewsDir);
 
-// Resilient template renderer for serverless environments
-function renderIndexDashboard(req, res, customData = {}) {
-  try {
-    const admin = isAdminRequest(req);
-    const cookieUserId = req.cookies?.user_id;
-    const cookieUserEmail = req.cookies?.user_email;
-    const cookieUserName = req.cookies?.user_name;
-    const cookieUserAvatar = req.cookies?.user_avatar;
-
-    const userId = admin ? 'usr_admin_saad' : (cookieUserId || 'usr_demo_001');
-    let user = db.users.find(userId);
-    if (!user && cookieUserEmail) {
-      user = db.users.create({
-        id: userId,
-        email: cookieUserEmail,
-        name: cookieUserName || cookieUserEmail.split('@')[0],
-        avatar: cookieUserAvatar || ''
-      });
-    }
-
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const usage = db.userUsage.getMonthlyUsage(userId, currentMonth);
-
-    // Determine persistence mode so the Supabase card badge reflects actual configuration.
-    const hasDurableDb = !!(
-      process.env.DATABASE_URL ||
-      process.env.SUPABASE_DB_PASSWORD ||
-      process.env.DATABASE_PASSWORD
-    );
-    const persistenceMode = hasDurableDb ? 'supabase' : 'ephemeral';
-
-    const templateData = {
-      error: null,
-      prediction_category: null,
-      resume_match_rating: null,
-      numerical_similarity_score: null,
-      csv_data: null,
-      isDevMode,
-      isAdmin: admin,
-      persistenceMode,
-      // adminEmail intentionally omitted — never embed in HTML served to clients
-      currentUser: user ? {
-        id: user.id,
-        email: user.email,
-        name: user.name || user.email.split('@')[0],
-        avatar: cookieUserAvatar || user.avatar || ''
-      } : (cookieUserEmail ? {
-        id: userId,
-        email: cookieUserEmail,
-        name: cookieUserName || cookieUserEmail.split('@')[0],
-        avatar: cookieUserAvatar || ''
-      } : null),
-      supabaseUrl: process.env.SUPABASE_URL || '',
-      supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
-      billing: {
-        isAdmin: admin,
-        isPro: true,
-        isFreeForever: true,
-        planTier: '100% Free Forever',
-        scansUsed: usage ? usage.scansUsed : 0,
-        maxFreeScans: 'Unlimited',
-        scansRemaining: 'unlimited',
-        unrestrictedAccess: true
-      },
-      ...customData
-    };
-
-    // Attempt direct template read first to bypass runtime view lookup quirks
-    const templateSearchPaths = [
-      path.join(process.cwd(), 'views', 'index.ejs'),
-      path.join(__dirname, 'views', 'index.ejs'),
-      path.join(__dirname, '..', 'views', 'index.ejs'),
-      path.join('/var/task', 'views', 'index.ejs'),
-      path.resolve('views', 'index.ejs')
-    ];
-
-    let templateContent = null;
-    for (const p of templateSearchPaths) {
-      if (fs.existsSync(p)) {
-        try {
-          templateContent = fs.readFileSync(p, 'utf8');
-          if (templateContent) break;
-        } catch {
-          // continue
-        }
-      }
-    }
-
-    if (templateContent) {
-      const html = ejs.render(templateContent, templateData, {
-        views: [ejsViewsDir]
-      });
-      return res.send(html);
-    }
-
-    // Fallback to res.render with error interception
-    return res.render('index', templateData, (err, html) => {
-      if (err) {
-        console.error('EJS view rendering error:', err);
-        return res.status(500).send('<!DOCTYPE html><html><body><h2>Error Rendering Resume Rater Dashboard</h2><p>An unexpected error occurred while loading the dashboard.</p></body></html>');
-      }
-      return res.send(html);
-    });
-  } catch (err) {
-    console.error('renderIndexDashboard error:', err);
-    return res.status(500).send('<!DOCTYPE html><html><body><h2>Dashboard Load Failure</h2><p>An unexpected error occurred while loading the dashboard.</p></body></html>');
-  }
-}
-
-// Resilient template renderer for legal & static pages (Terms, Privacy, Refund, Contact)
-function renderEjsPage(viewName, req, res, customData = {}) {
-  try {
-    const templateSearchPaths = [
-      path.join(process.cwd(), 'views', `${viewName}.ejs`),
-      path.join(__dirname, 'views', `${viewName}.ejs`),
-      path.join(__dirname, '..', 'views', `${viewName}.ejs`),
-      path.join('/var/task', 'views', `${viewName}.ejs`),
-      path.resolve('views', `${viewName}.ejs`)
-    ];
-
-    let templateContent = null;
-    for (const p of templateSearchPaths) {
-      if (fs.existsSync(p)) {
-        try {
-          templateContent = fs.readFileSync(p, 'utf8');
-          if (templateContent) break;
-        } catch {
-          // continue
-        }
-      }
-    }
-
-    const templateData = { isDevMode, isAdmin: isAdminRequest(req), ...customData };
-
-    if (templateContent) {
-      const html = ejs.render(templateContent, templateData, { views: [ejsViewsDir] });
-      return res.send(html);
-    }
-
-    return res.render(viewName, templateData, (err, html) => {
-      if (err) {
-        console.error(`EJS view rendering error for ${viewName}:`, err);
-        return res.status(500).send(`<!DOCTYPE html><html><body><h2>Error loading ${viewName} page</h2><p>Please try again later.</p></body></html>`);
-      }
-      return res.send(html);
-    });
-  } catch (err) {
-    console.error(`renderEjsPage error for ${viewName}:`, err);
-    return res.status(500).send(`<!DOCTYPE html><html><body><h2>Page Load Error</h2><p>Please try again later.</p></body></html>`);
-  }
-}
-
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+// ── Middleware ──────────────────────────────────────────────────────────────
+app.use(securityHeaders);
 app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '100kb' }));
+app.use(sessionMiddleware);
+app.use(sameOriginGuard);
 
-// Lightweight cookie parser middleware
+const publicDir = path.join(__dirname, 'public');
+
+// Content-hashed asset URLs let static files be cached for a long time while
+// still updating immediately after a deploy.
+const assetVersions = new Map();
+app.locals.asset = (urlPath) => {
+  const file = path.join(publicDir, urlPath);
+  let v = 'dev';
+  try {
+    const { mtimeMs } = fs.statSync(file);
+    const cached = assetVersions.get(urlPath);
+    if (cached && cached.mtimeMs === mtimeMs) {
+      v = cached.v;
+    } else {
+      v = crypto.createHash('sha1').update(fs.readFileSync(file)).digest('hex').slice(0, 10);
+      assetVersions.set(urlPath, { mtimeMs, v });
+    }
+  } catch { /* missing file: unversioned */ }
+  return `${urlPath}?v=${v}`;
+};
+
 app.use((req, res, next) => {
-  req.cookies = req.cookies || {};
-  const cookieHeader = req.headers.cookie;
-  if (cookieHeader) {
-    cookieHeader.split(';').forEach(c => {
-      const parts = c.split('=');
-      if (parts.length >= 2) {
-        const key = parts[0].trim();
-        const val = decodeURIComponent(parts.slice(1).join('=').trim());
-        req.cookies[key] = val;
-      }
-    });
+  // Versioned (?v=hash) asset URLs are immutable; unversioned ones revalidate soon.
+  if (req.method === 'GET' && /^\/(app\.css|js\/|vendor\/|match-visualizer)/.test(req.path)) {
+    res.setHeader('Cache-Control', req.query.v ? 'public, max-age=31536000, immutable' : 'public, max-age=300');
   }
   next();
 });
-
-const publicDir = fs.existsSync(path.join(__dirname, 'public'))
-  ? path.join(__dirname, 'public')
-  : path.join(process.cwd(), 'public');
-// Serve static assets with long-lived cache headers (content-addressed by build)
-app.use(express.static(publicDir, {
-  maxAge: '7d',
-  setHeaders: (res, filePath) => {
-    // app.css and bundle change on every build — cache 7 days, revalidate
-    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
-      res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
-    }
-  }
-}));
-
-// Gracefully handle browser favicon requests
+app.use(express.static(publicDir, { index: false, cacheControl: false }));
 app.get(['/favicon.ico', '/favicon.png'], (req, res) => res.status(204).end());
 
-// NLP & Model Logic
-const STOP_WORDS = new Set([
-  'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
-  'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'could', 'did',
-  'do', 'does', 'doing', 'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'has', 'have',
-  'having', 'he', 'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'i', 'if', 'in',
-  'into', 'is', 'it', 'its', 'itself', 'just', 'me', 'more', 'most', 'my', 'myself', 'no', 'nor', 'not',
-  'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'ours', 'ourselves', 'out', 'over', 'own',
-  'same', 'she', 'should', 'so', 'some', 'such', 'than', 'that', 'the', 'their', 'theirs', 'them',
-  'themselves', 'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to', 'too', 'under',
-  'until', 'up', 'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom',
-  'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
-]);
+// ── Helpers ─────────────────────────────────────────────────────────────────
+const ok = (res, body = {}) => res.json({ success: true, ...body });
+const fail = (res, status, error) => res.status(status).json({ success: false, error });
 
-const TECH_SHORT_TOKENS = new Set([
-  'c', 'r', 'go', 'ai', 'ml', 'ui', 'ux', 'db', 'qa', 'os', 'ci', 'cd', 'io', 'js', 'ts'
-]);
-
-function tokenize(text) {
-  if (typeof text !== 'string') return [];
-  return text.toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(t => (t.length > 2 || TECH_SHORT_TOKENS.has(t)) && !STOP_WORDS.has(t));
-}
-
-// Load training dataset and build category centroids & IDF
-const categoryCentroids = {};
-const idf = {};
-let totalDocs = 0;
-
-function trainClassifier() {
-  const datasetPath = fs.existsSync(path.join(__dirname, 'data', 'gpt_dataset.csv'))
-    ? path.join(__dirname, 'data', 'gpt_dataset.csv')
-    : path.join(process.cwd(), 'data', 'gpt_dataset.csv');
-
-  if (!fs.existsSync(datasetPath)) {
-    console.warn('Dataset file not found at:', datasetPath);
-    return;
-  }
-
-  const content = fs.readFileSync(datasetPath, 'utf8');
-  const lines = content.split('\n');
-  const rows = [];
-  const categoryDocs = {};
-  const docFreq = {};
-
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
-    const commaIdx = line.indexOf(',');
-    if (commaIdx === -1) continue;
-    const category = line.substring(0, commaIdx).trim().replace(/^"|"$/g, '');
-    const resume = line.substring(commaIdx + 1).trim().replace(/^"|"$/g, '');
-    rows.push({ category, resume });
-  }
-
-  totalDocs = rows.length;
-  for (const r of rows) {
-    if (!categoryDocs[r.category]) categoryDocs[r.category] = [];
-    categoryDocs[r.category].push(r.resume);
-    const words = new Set(tokenize(r.resume));
-    for (const w of words) {
-      docFreq[w] = (docFreq[w] || 0) + 1;
-    }
-  }
-
-  for (const [w, df] of Object.entries(docFreq)) {
-    idf[w] = Math.log((1 + totalDocs) / (1 + df)) + 1;
-  }
-
-  for (const [cat, docs] of Object.entries(categoryDocs)) {
-    const combined = docs.join(' ');
-    categoryCentroids[cat] = computeTfidfVector(combined);
-  }
-
-  console.log(`Classifier trained on ${totalDocs} documents across ${Object.keys(categoryCentroids).length} categories.`);
-}
-
-function computeTfidfVector(text) {
-  const tokens = tokenize(text);
-  const tf = {};
-  for (const t of tokens) {
-    tf[t] = (tf[t] || 0) + 1;
-  }
-  const vec = {};
-  let norm = 0;
-  // Bounded baseline IDF for unseen words so out-of-vocabulary terms do not distort vectors
-  const defaultIdf = totalDocs > 0 ? (Math.log((1 + totalDocs) / (1 + Math.max(1, Math.round(totalDocs * 0.15)))) + 1) : 2.5;
-  for (const [t, count] of Object.entries(tf)) {
-    const weight = count * (idf[t] || defaultIdf);
-    vec[t] = weight;
-    norm += weight * weight;
-  }
-  norm = Math.sqrt(norm);
-  if (norm > 0) {
-    for (const t in vec) vec[t] /= norm;
-  }
-  return vec;
-}
-
-function cosineSimilarity(vecA, vecB) {
-  let dot = 0;
-  for (const t in vecA) {
-    if (vecB[t]) {
-      dot += vecA[t] * vecB[t];
-    }
-  }
-  return dot;
-}
-
-function predictCategory(resumeText) {
-  const resumeVec = computeTfidfVector(resumeText);
-  let bestCategory = 'Unknown';
-  let bestScore = -1;
-
-  for (const [cat, catVec] of Object.entries(categoryCentroids)) {
-    const sim = cosineSimilarity(resumeVec, catVec);
-    if (sim > bestScore) {
-      bestScore = sim;
-      bestCategory = cat;
-    }
-  }
-  return bestCategory;
-}
-
-function rateResumeSimilarity(resumeVec, jobDescVec) {
-  const similarityScore = cosineSimilarity(resumeVec, jobDescVec);
-  let matchRating = 'Low Match';
-  if (similarityScore >= 0.75) {
-    matchRating = 'High Match';
-  } else if (similarityScore >= 0.50) {
-    matchRating = 'Medium Match';
-  }
-  return { matchRating, similarityScore };
-}
-
-function getPdfjsAssetPath(subDir) {
-  try {
-    const pkgPath = require.resolve('pdfjs-dist/package.json');
-    const dir = path.join(path.dirname(pkgPath), subDir);
-    if (fs.existsSync(dir)) {
-      return dir.endsWith(path.sep) ? dir : dir + path.sep;
-    }
-  } catch {}
-  const fallback = path.join(__dirname, 'node_modules/pdfjs-dist', subDir);
-  return fallback.endsWith(path.sep) ? fallback : fallback + path.sep;
-}
-
-let CachedPDFParse = null;
-async function getPDFParseClass() {
-  if (!globalThis.pdfjsWorker) {
-    try {
-      const workerMod = await import('pdfjs-dist/legacy/build/pdf.worker.mjs');
-      globalThis.pdfjsWorker = workerMod;
-    } catch {}
-  }
-  if (!CachedPDFParse) {
-    const mod = await import('pdf-parse');
-    CachedPDFParse = mod.PDFParse || mod.default?.PDFParse || mod.default;
-  }
-  return CachedPDFParse;
-}
-
-async function parsePdfDetails(filePath) {
-  try {
-    const fileBuffer = typeof filePath === 'string' ? fs.readFileSync(filePath) : filePath;
-    const PDFParser = await getPDFParseClass();
-    const standardFontDataUrl = getPdfjsAssetPath('standard_fonts');
-    const cMapUrl = getPdfjsAssetPath('cmaps');
-    const parser = new PDFParser({
-      data: new Uint8Array(fileBuffer),
-      standardFontDataUrl,
-      cMapUrl,
-      cMapPacked: true
-    });
-    const result = await parser.getText();
-    const text = result?.text || '';
-    const pages = result?.total || (result?.pages ? result.pages.length : 1);
-    return { text, pages };
-  } catch (err) {
-    console.error('Error parsing PDF details:', err);
-    throw err;
-  }
-}
-
-async function pdfToText(filePath) {
-  try {
-    const { text } = await parsePdfDetails(filePath);
-    return text;
-  } catch (err) {
-    console.error('Error parsing PDF:', err);
-    return '';
-  }
-}
-
-function cleanResume(txt) {
-  if (typeof txt !== 'string') return '';
-  let cleanText = txt.replace(/http\S+\s*/g, ' ');
-  cleanText = cleanText.replace(/\b(RT|cc)\b/g, ' ');
-  cleanText = cleanText.replace(/#\S+\s*/g, ' ');
-  cleanText = cleanText.replace(/@\S+/g, ' ');
-  // Normalize programming languages & technical acronyms with symbols before removing punctuation
-  cleanText = cleanText.replace(/c\+\+/gi, ' cpp ');
-  cleanText = cleanText.replace(/c#/gi, ' csharp ');
-  cleanText = cleanText.replace(/\.net\b/gi, ' dotnet ');
-  cleanText = cleanText.replace(/node\.js\b/gi, ' nodejs ');
-  cleanText = cleanText.replace(/react\.js\b/gi, ' reactjs ');
-  cleanText = cleanText.replace(/vue\.js\b/gi, ' vuejs ');
-  cleanText = cleanText.replace(/[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, ' ');
-  cleanText = cleanText.replace(/[^\x00-\x7f]/g, ' ');
-  cleanText = cleanText.replace(/\s+/g, ' ').trim();
-  return cleanText;
-}
-
-const ALL_SECTION_NAMES = ['Education', 'Experience', 'Skills', 'Projects', 'Certifications', 'Languages', 'Summary', 'Profile'];
-const getSectionTerminators = (currentSection) => ALL_SECTION_NAMES.filter(s => s.toLowerCase() !== currentSection.toLowerCase());
-
-function extractSectionRegex(cvText, sectionName, endKeywords) {
-  if (typeof cvText !== 'string') return `${sectionName} section not found.`;
-  const lines = cvText.split(/\r?\n/);
-  let capturing = false;
-  const capturedLines = [];
-  const startRegex = new RegExp('^\\s*(?:[#*\\d.-]+\\s*)?' + sectionName + '[:\\s]*$', 'i');
-  const endKeywordsList = (Array.isArray(endKeywords) && endKeywords.length > 0) ? endKeywords : getSectionTerminators(sectionName);
-  const endRegex = new RegExp('^\\s*(?:[#*\\d.-]+\\s*)?(' + endKeywordsList.join('|') + ')[:\\s]*$', 'i');
-
-  for (const line of lines) {
-    if (!capturing) {
-      if (startRegex.test(line.trim())) {
-        capturing = true;
-        capturedLines.push(line);
-      }
-    } else {
-      if (endRegex.test(line.trim())) {
-        break;
-      }
-      capturedLines.push(line);
-    }
-  }
-
-  if (capturedLines.length > 0) {
-    return capturedLines.join('\n').trim();
-  }
-
-  // Fallback: search substring boundary
-  const subIdx = cvText.search(new RegExp('(?:^|\\n)\\s*(?:[#*\\d.-]+\\s*)?' + sectionName, 'i'));
-  if (subIdx !== -1) {
-    const fromSection = cvText.slice(subIdx);
-    const firstNewline = fromSection.indexOf('\n');
-    if (firstNewline !== -1) {
-      const contentAfterHeader = fromSection.slice(firstNewline + 1);
-      const endMatch = contentAfterHeader.search(new RegExp('(?:^|\\n)\\s*(?:[#*\\d.-]+\\s*)?(' + endKeywordsList.join('|') + ')[:\\s]', 'im'));
-      if (endMatch !== -1) {
-        return contentAfterHeader.slice(0, endMatch).trim();
-      }
-      return contentAfterHeader.trim();
-    }
-    return fromSection.trim();
-  }
-
-  return `${sectionName} section not found.`;
-}
-
-function saveToCsv(data) {
-  const csvFile = isServerless ? path.join(os.tmpdir(), 'cv_sections.csv') : path.join(__dirname, 'cv_sections.csv');
-  try {
-    const fileExists = fs.existsSync(csvFile);
-
-    const escapeCsv = (val) => {
-      if (val === undefined || val === null) return '""';
-      let str = String(val);
-      // Neutralize formula / CSV injection
-      if (/^[=+\-@\t\r]/.test(str)) {
-        str = "'" + str;
-      }
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-        return `"${str.replace(/"/g, '""')}"`;
-      }
-      return str;
-    };
-
-    const line = [
-      escapeCsv(data.Name),
-      escapeCsv(data.Category),
-      escapeCsv(data.Education),
-      escapeCsv(data.Experience),
-      escapeCsv(data.Skills),
-      escapeCsv(data.Projects),
-      data['Probability Score']
-    ].join(',') + '\n';
-
-    if (!fileExists) {
-      const header = 'Name,Category,Education,Experience,Skills,Projects,Probability Score\n';
-      fs.writeFileSync(csvFile, header + line, 'utf8');
-    } else {
-      fs.appendFileSync(csvFile, line, 'utf8');
-    }
-  } catch (err) {
-    console.warn('Notice: Could not write to cv_sections.csv on serverless filesystem:', err.message);
-  }
-}
-
-function computeDetailedMatchMetrics(resumeText, jobDescriptionText, resumeSections = null) {
-  const cleanedResume = cleanResume(resumeText);
-  const cleanedJd = cleanResume(jobDescriptionText);
-
-  const resumeVec = computeTfidfVector(cleanedResume);
-  const jdVec = computeTfidfVector(cleanedJd);
-
-  const { matchRating, similarityScore } = rateResumeSimilarity(resumeVec, jdVec);
-  const roundedScore = Number(similarityScore.toFixed(2));
-  const percentage = Math.min(100, Math.max(0, Math.round(roundedScore * 100)));
-
-  // Extract top keywords from JD
-  const jdTokens = Object.keys(jdVec).sort((a, b) => jdVec[b] - jdVec[a]);
-  const topJdTokens = jdTokens.slice(0, 8);
-
-  const keywordAlignment = topJdTokens.map(token => {
-    const jdVal = Math.min(100, Math.round((jdVec[token] || 0) * 160));
-    const resumeVal = Math.min(100, Math.round((resumeVec[token] || 0) * 160));
-    return {
-      keyword: token.charAt(0).toUpperCase() + token.slice(1),
-      resumeScore: resumeVal,
-      jobScore: Math.max(jdVal, 35),
-      matched: resumeVal > 0
-    };
-  });
-
-  const matchedTokensCount = topJdTokens.filter(t => (resumeVec[t] || 0) > 0).length;
-  const keywordCoverage = topJdTokens.length > 0 ? Math.round((matchedTokensCount / topJdTokens.length) * 100) : percentage;
-
-  // Skills alignment score
-  let skillsScore = percentage;
-  if (resumeSections?.Skills && !resumeSections.Skills.toLowerCase().includes('not found')) {
-    const skillsVec = computeTfidfVector(cleanResume(resumeSections.Skills));
-    const skillSim = cosineSimilarity(skillsVec, jdVec);
-    skillsScore = Math.min(100, Math.round(skillSim * 120) + 10);
-  } else {
-    skillsScore = Math.max(15, Math.round(percentage * 0.9));
-  }
-
-  // Projects / Experience score
-  let projectsScore = percentage;
-  if (resumeSections?.Projects && !resumeSections.Projects.toLowerCase().includes('not found')) {
-    const projVec = computeTfidfVector(cleanResume(resumeSections.Projects));
-    const projSim = cosineSimilarity(projVec, jdVec);
-    projectsScore = Math.min(100, Math.round(projSim * 120) + 10);
-  } else {
-    projectsScore = Math.max(10, Math.round(percentage * 0.85));
-  }
-
-  const domainScore = Math.min(100, Math.max(percentage, Math.round((percentage + keywordCoverage) / 2)));
-
-  const dimensions = [
-    { dimension: 'Cosine Fit', score: Math.max(percentage, 5), target: 100, fullMark: 100 },
-    { dimension: 'Key Skills', score: Math.max(skillsScore, 5), target: 100, fullMark: 100 },
-    { dimension: 'Keywords', score: Math.max(keywordCoverage, 5), target: 100, fullMark: 100 },
-    { dimension: 'Projects', score: Math.max(projectsScore, 5), target: 100, fullMark: 100 },
-    { dimension: 'Domain Scope', score: Math.max(domainScore, 5), target: 100, fullMark: 100 }
-  ];
-
+function pageData(req, extra = {}) {
   return {
-    similarityScore: roundedScore,
-    matchRating,
-    percentage,
-    dimensions,
-    keywordAlignment,
-    matchedCount: matchedTokensCount,
-    totalKeywordsChecked: topJdTokens.length
+    currentUser: req.user ? { name: req.user.name, email: req.user.email, avatar: req.user.avatar } : null,
+    authEnabled: authConfigured() && sessionsEnabled(),
+    supabaseUrl: process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+    persistenceMode: db.isDurable() ? 'durable' : 'ephemeral',
+    contactEmail: process.env.CONTACT_EMAIL || '',
+    ...extra
   };
 }
 
-// Helper to extract full resume analysis
-async function analyzeResumePdf(filePath, originalName, jobDescriptionText = '', jobKeywords = '') {
-  const { text: rawText, pages } = await parsePdfDetails(filePath);
-  const cleanedResume = cleanResume(rawText);
-
-  const sections = {
-    Education: extractSectionRegex(rawText, 'Education', getSectionTerminators('Education')),
-    Experience: extractSectionRegex(rawText, 'Experience', getSectionTerminators('Experience')),
-    Skills: extractSectionRegex(rawText, 'Skills', getSectionTerminators('Skills')),
-    Projects: extractSectionRegex(rawText, 'Projects', getSectionTerminators('Projects'))
-  };
-
-  const wordCount = rawText.trim() ? rawText.trim().split(/\s+/).length : 0;
-  const characterCount = rawText.length;
-  const category = predictCategory(cleanedResume);
-
-  // Match against job description if provided
-  let match = null;
-  const targetJd = jobDescriptionText.trim() || jobKeywords.trim() || '';
-  if (targetJd) {
-    const detailedMatch = computeDetailedMatchMetrics(cleanedResume, targetJd, sections);
-    match = {
-      ...detailedMatch,
-      targetJob: targetJd.length > 80 ? targetJd.substring(0, 80) + '...' : targetJd
-    };
-
-    saveToCsv({
-      Name: originalName || 'Unknown',
-      Category: category,
-      Education: sections.Education,
-      Experience: sections.Experience,
-      Skills: sections.Skills,
-      Projects: sections.Projects,
-      'Probability Score': detailedMatch.similarityScore
-    });
-  }
-
-  return {
-    filename: originalName,
-    pages,
-    stats: {
-      wordCount,
-      characterCount,
-      pageCount: pages
-    },
-    category,
-    sections,
-    rawText,
-    cleanedText: cleanedResume,
-    match
-  };
-}
-
-// REST API Endpoints
-
-// 1. API: Parse uploaded PDF resume (Protected by subscription & quota check)
-app.post('/api/parse-resume', uploadLimiter, checkSubscriptionAndQuota, (req, res, next) => {
-  upload.single('resume')(req, res, err => {
+function render(view, req, res, extra = {}) {
+  res.render(view, pageData(req, extra), (err, html) => {
     if (err) {
-      if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ success: false, error: 'File size exceeds 4MB limit. Please upload a smaller PDF.' });
-        }
-        return res.status(400).json({ success: false, error: getSafeErrorMessage(err, 'File upload error.') });
-      }
-      return res.status(400).json({ success: false, error: getSafeErrorMessage(err, 'File upload failed.') });
+      console.error(`Template error (${view}):`, err);
+      return res.status(500).type('html').send('<!DOCTYPE html><title>Error</title><p>Something went wrong. Please try again.</p>');
     }
-    next();
+    res.type('html').send(html);
+  });
+}
+
+function jobTextFrom(body = {}) {
+  const text = typeof body.job_description_text === 'string' ? body.job_description_text.trim() : '';
+  const keywords = typeof body.job_keywords === 'string' ? body.job_keywords.trim() : '';
+  return (text || keywords).slice(0, MAX_JOB_TEXT_CHARS);
+}
+
+function persistEvaluation(req, analysis, size) {
+  if (!req.user || !analysis.match) return false;
+  db.users.upsert(req.user); // idempotent; also recreates state on a cold serverless instance
+  const resume = db.resumes.create({
+    userId: req.user.id,
+    filename: analysis.filename,
+    fileSizeBytes: size,
+    pageCount: analysis.pages,
+    wordCount: analysis.stats.wordCount,
+    detectedCategory: analysis.category
+  });
+  db.evaluations.create({
+    userId: req.user.id,
+    resumeId: resume.id,
+    targetJobTitle: analysis.match.targetJob,
+    similarityScore: analysis.match.similarityScore,
+    matchRating: analysis.match.matchRating,
+    dimensions: analysis.match.dimensions,
+    keywordGaps: analysis.match.missingKeywords
+  });
+  return true;
+}
+
+function sendAnalysisError(res, err, fallback) {
+  if (err instanceof UnreadablePdfError) return fail(res, 422, err.message);
+  console.error('Analysis error:', err);
+  return fail(res, 500, getSafeErrorMessage(err, fallback));
+}
+
+// ── Pages ───────────────────────────────────────────────────────────────────
+app.get('/', (req, res) => render('index', req, res));
+app.get('/auth', (req, res) => render('auth', req, res));
+app.get('/auth/callback', (req, res) => render('auth-callback', req, res));
+app.get('/terms', (req, res) => render('terms', req, res));
+app.get('/privacy', (req, res) => render('privacy', req, res));
+app.get('/contact', (req, res) => render('contact', req, res, { form: { name: '', email: '', subject: 'general', message: '' }, status: null }));
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+app.post('/contact', apiLimiter, (req, res) => {
+  const body = req.body || {};
+  const form = {
+    name: String(body.name || '').trim().slice(0, 100),
+    email: String(body.email || '').trim().slice(0, 254),
+    subject: String(body.subject || 'general').slice(0, 50),
+    message: String(body.message || '').trim().slice(0, 5000)
+  };
+  // Hidden "website" field: humans leave it empty, bots fill it in.
+  if (body.website) return render('contact', req, res, { form, status: { ok: true, text: 'Thanks. Your message was sent.' } });
+  if (!EMAIL_RE.test(form.email) || form.message.length < 10) {
+    return res.status(400).render('contact', pageData(req, {
+      form,
+      status: { ok: false, text: 'Please enter a valid email address and a message of at least 10 characters.' }
+    }));
+  }
+  db.contacts.create(form);
+  return render('contact', req, res, {
+    form: { name: '', email: '', subject: 'general', message: '' },
+    status: { ok: true, text: 'Thanks. Your message was sent and we will reply by email.' }
+  });
+});
+
+// ── Resume analysis API ─────────────────────────────────────────────────────
+app.post('/api/parse-resume', uploadLimiter, (req, res, next) => {
+  upload.single('resume')(req, res, (err) => {
+    if (!err) return next();
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+      return fail(res, 413, 'File exceeds the 4 MB limit. Please upload a smaller PDF.');
+    }
+    return fail(res, 400, 'File upload failed. Please try again.');
   });
 }, async (req, res) => {
+  const file = req.file;
+  if (!file) return fail(res, 400, 'No PDF uploaded. Please choose a PDF resume.');
+  if (!isPdfBuffer(file.buffer)) return fail(res, 400, 'That file is not a valid PDF document.');
+
   try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: 'No PDF file uploaded. Please select or drag a PDF resume.'
-      });
-    }
-
-    const isPdf = req.file.mimetype === 'application/pdf' || req.file.originalname.toLowerCase().endsWith('.pdf');
-    if (!isPdf) {
-      cleanupFile(req.file.path);
-      return res.status(400).json({
-        success: false,
-        error: 'Unsupported file type. Please upload a valid PDF document.'
-      });
-    }
-
-    if (!validatePdfMagicBytes(req.file.path)) {
-      cleanupFile(req.file.path);
-      return res.status(400).json({
-        success: false,
-        error: 'The uploaded file is not a valid PDF document.'
-      });
-    }
-
-    const jobDescriptionText = req.body.job_description_text || '';
-    const jobKeywords = req.body.job_keywords || '';
-
-    let analysis;
-    try {
-      analysis = await analyzeResumePdf(req.file.path, req.file.originalname, jobDescriptionText, jobKeywords);
-    } finally {
-      cleanupFile(req.file.path);
-    }
-
-    // Consume scan quota for free users upon successful parse
-    if (req.consumeScanQuota) req.consumeScanQuota();
-
-    // Persist to relational database
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const updatedUsage = db.userUsage.getMonthlyUsage(req.user.id, currentMonth);
-
-    const savedResume = db.resumes.create({
-      userId: req.user.id,
-      title: req.file.originalname.replace(/\.pdf$/i, ''),
-      filename: req.file.originalname,
-      fileSizeBytes: req.file.size,
-      pageCount: analysis.pages || 1,
-      rawText: analysis.rawText,
-      cleanedText: analysis.cleanedText,
-      parsedSections: analysis.sections,
-      detectedCategory: analysis.category
+    const analysis = await analyzeResume(file.buffer, {
+      filename: path.basename(file.originalname || 'resume.pdf').slice(0, 255),
+      jobText: jobTextFrom(req.body)
     });
-
-    if (analysis.match) {
-      db.evaluations.create({
-        userId: req.user.id,
-        resumeId: savedResume.id,
-        targetJobTitle: analysis.match.targetJob || jobKeywords || 'Custom Job Requirement',
-        similarityScore: analysis.match.similarityScore,
-        matchRating: analysis.match.matchRating,
-        dimensions: analysis.match.dimensions || [],
-        keywordGaps: analysis.match.keywordAlignment || []
-      });
-    }
-
-    return res.json({
-      success: true,
-      ...analysis,
-      resumeId: savedResume.id,
-      billing: {
-        isPro: req.isPro,
-        planTier: req.subscription?.planTier || 'free',
-        scansUsed: updatedUsage.scansUsed,
-        maxFreeScans: updatedUsage.maxFreeScans,
-        scansRemaining: req.isPro ? 'unlimited' : Math.max(0, updatedUsage.maxFreeScans - updatedUsage.scansUsed)
-      }
-    });
+    const persisted = persistEvaluation(req, analysis, file.size);
+    return ok(res, { ...analysis, persisted });
   } catch (err) {
-    console.error('API /api/parse-resume error:', err);
-    if (req.file) cleanupFile(req.file.path);
-    return res.status(500).json({
-      success: false,
-      error: getSafeErrorMessage(err, 'Failed to parse resume document.')
-    });
+    return sendAnalysisError(res, err, 'Failed to analyse the resume.');
   }
 });
 
-// 2. API: List available sample resumes for quick testing (bundled samples only)
-const BUNDLED_SAMPLE_FILES = [
-  'Saads_CV_Resume.pdf',
-  'resume1.pdf',
-  'resume2.pdf',
-  'Saad_Ali_ResumeCV_Old.pdf'
+// Bundled, fictional sample resumes for trying the tool without uploading.
+const SAMPLE_DIR = path.join(__dirname, 'uploads');
+const SAMPLES = [
+  { file: 'sample-data-scientist.pdf', name: 'Data scientist (sample)' },
+  { file: 'sample-software-engineer.pdf', name: 'Software engineer (sample)' },
+  { file: 'sample-web-developer.pdf', name: 'Web developer (sample)' },
+  { file: 'sample-junior-developer.pdf', name: 'Junior developer (sample)' }
 ];
 
 app.get('/api/sample-resumes', apiLimiter, (req, res) => {
-  try {
-    const samples = BUNDLED_SAMPLE_FILES.map(filename => {
-      const filePath = resolveResumePath(filename);
-      try {
-        const stat = fs.statSync(filePath);
-        return {
-          filename,
-          displayName: filename.replace(/^\d+_/, '').replace(/\.pdf$/i, '').replace(/_/g, ' '),
-          sizeBytes: stat.size,
-          sizeFormatted: `${(stat.size / 1024).toFixed(1)} KB`
-        };
-      } catch {
-        return null;
-      }
-    }).filter(Boolean);
+  const samples = SAMPLES.filter(s => fs.existsSync(path.join(SAMPLE_DIR, s.file)))
+    .map(s => ({ id: s.file, name: s.name }));
+  return ok(res, { samples });
+});
 
-    return res.json({ success: true, samples });
+app.post('/api/parse-sample', apiLimiter, async (req, res) => {
+  const sample = SAMPLES.find(s => s.file === req.body?.sampleName);
+  if (!sample) return fail(res, 400, 'Unknown sample resume.');
+  try {
+    const buffer = fs.readFileSync(path.join(SAMPLE_DIR, sample.file));
+    const analysis = await analyzeResume(buffer, { filename: sample.name, jobText: jobTextFrom(req.body) });
+    return ok(res, { ...analysis, persisted: false, isSample: true });
   } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
+    return sendAnalysisError(res, err, 'Failed to load the sample resume.');
   }
 });
 
-// 3. API: Parse an existing sample resume (Protected by subscription & quota check)
-app.post('/api/parse-sample', apiLimiter, checkSubscriptionAndQuota, async (req, res) => {
-  try {
-    const { sampleName, job_description_text, job_keywords, isSamplePreview } = req.body || {};
-    if (!sampleName || typeof sampleName !== 'string') {
-      return res.status(400).json({ success: false, error: 'sampleName is required and must be a string.' });
-    }
-
-    const safeSampleName = path.basename(sampleName);
-    if (!BUNDLED_SAMPLE_FILES.includes(safeSampleName)) {
-      return res.status(400).json({ success: false, error: 'Invalid sample file requested: ' + safeSampleName });
-    }
-    const targetPath = resolveResumePath(safeSampleName);
-    if (!fs.existsSync(targetPath)) {
-      return res.status(404).json({ success: false, error: 'Sample file not found: ' + safeSampleName });
-    }
-
-    const analysis = await analyzeResumePdf(targetPath, safeSampleName, job_description_text || '', job_keywords || '');
-
-    // Consume scan quota for free users unless previewing a bundled sample
-    if (req.consumeScanQuota && !isSamplePreview) req.consumeScanQuota();
-
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const updatedUsage = db.userUsage.getMonthlyUsage(req.user.id, currentMonth);
-
-    return res.json({
-      success: true,
-      ...analysis,
-      billing: {
-        isPro: req.isPro,
-        planTier: req.subscription?.planTier || 'free',
-        scansUsed: updatedUsage.scansUsed,
-        maxFreeScans: updatedUsage.maxFreeScans,
-        scansRemaining: req.isPro ? 'unlimited' : Math.max(0, updatedUsage.maxFreeScans - updatedUsage.scansUsed)
-      }
-    });
-  } catch (err) {
-    console.error('API /api/parse-sample error:', err);
-    return res.status(500).json({
-      success: false,
-      error: getSafeErrorMessage(err, 'Failed to parse sample resume.')
-    });
-  }
-});
-
-// 4. API: Interactive Match Evaluator against Job Description
 app.post('/api/evaluate-match', apiLimiter, (req, res) => {
-  try {
-    const { resumeText, jobDescriptionText, resumeSections } = req.body || {};
-    if (typeof resumeText !== 'string' || typeof jobDescriptionText !== 'string' || !resumeText.trim() || !jobDescriptionText.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Both resumeText and jobDescriptionText are required string values.'
-      });
-    }
-    // Guard against excessively large payloads that could cause CPU exhaustion in TF-IDF
-    const MAX_TEXT_BYTES = 200_000; // 200 KB per field
-    if (resumeText.length > MAX_TEXT_BYTES || jobDescriptionText.length > MAX_TEXT_BYTES) {
-      return res.status(413).json({
-        success: false,
-        error: 'Text input exceeds maximum allowed size (200 KB per field).'
-      });
-    }
-
-    const detailedMetrics = computeDetailedMatchMetrics(resumeText, jobDescriptionText, resumeSections || null);
-
-    return res.json({
-      success: true,
-      ...detailedMetrics
-    });
-  } catch (err) {
-    return res.status(500).json({
-      success: false,
-      error: getSafeErrorMessage(err, 'Evaluation failed.')
-    });
+  const { resumeText, jobDescriptionText, resumeSections } = req.body || {};
+  if (typeof resumeText !== 'string' || typeof jobDescriptionText !== 'string' ||
+      !resumeText.trim() || !jobDescriptionText.trim()) {
+    return fail(res, 400, 'Both resumeText and jobDescriptionText are required.');
   }
+  if (resumeText.length > MAX_MATCH_TEXT_CHARS || jobDescriptionText.length > MAX_MATCH_TEXT_CHARS) {
+    return fail(res, 413, 'Text input exceeds the 200 KB per-field limit.');
+  }
+  const sections = resumeSections && typeof resumeSections === 'object' ? resumeSections : {};
+  const match = scoreMatch(resumeText, jobDescriptionText, sections);
+  const { checks, suggestions } = atsChecks({ rawText: resumeText, sections, pages: Number(req.body.pages) || 1, match });
+  return ok(res, { ...match, checks, suggestions });
 });
 
-// 5b. API: Fetch Job Listings (JobDataLake API Integration & Match Scoring)
-const handleJobsRequest = async (req, res) => {
-  try {
-    const query = req.body?.query || req.query?.query || '';
-    const category = req.body?.category || req.query?.category || '';
-    const remote = req.body?.remote !== undefined ? req.body.remote : (req.query?.remote === 'true' || req.query?.remote === true);
-    const resumeText = req.body?.resumeText || req.query?.resumeText || '';
-
-    const result = await jobsService.getJobs({
-      query,
-      category,
-      remoteOnly: remote === 'true' || remote === true,
-      resumeText,
-      computeTfidfVector,
-      rateResumeSimilarity
-    });
-    return res.json(result);
-  } catch (err) {
-    console.error('API /api/jobs error:', err);
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err, 'Failed to fetch job listings.') });
-  }
+const handleJobs = (req, res) => {
+  const src = req.method === 'GET' ? req.query : (req.body || {});
+  const resumeText = typeof src.resumeText === 'string' ? src.resumeText.slice(0, MAX_MATCH_TEXT_CHARS) : '';
+  const result = jobsService.getJobs({
+    query: String(src.query || '').slice(0, 100),
+    category: String(src.category || '').slice(0, 60),
+    remoteOnly: src.remote === true || src.remote === 'true',
+    resumeText
+  });
+  return res.json(result);
 };
-app.get('/api/jobs', apiLimiter, handleJobsRequest);
-app.post('/api/jobs', apiLimiter, handleJobsRequest);
+app.get('/api/jobs', apiLimiter, handleJobs);
+app.post('/api/jobs', apiLimiter, handleJobs);
 
-// 6. API: 100% Free Platform - Checkout bypassed
-app.all('/api/create-checkout-session', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  return res.status(200).json({
-    success: true,
-    isFree: true,
-    isPro: true,
-    unrestrictedAccess: true,
-    plan: 'free_unlimited',
-    message: 'Resume Rater is completely 100% free with unlimited scans. No subscription or checkout is required!',
-    checkoutUrl: '/#features'
-  });
-});
+// ── Auth API ────────────────────────────────────────────────────────────────
+// The client sends its Supabase access token; the server verifies it with
+// Supabase and issues its own signed, httpOnly session cookie. No identity is
+// ever taken from the request body.
+app.post('/api/auth/session', authLimiter, async (req, res) => {
+  if (!authConfigured()) return fail(res, 503, 'Sign-in is not configured on this server.');
+  if (!sessionsEnabled()) return fail(res, 503, 'Sign-in is temporarily unavailable (server configuration).');
 
-// 7. API: Customer Portal (100% Free Account)
-app.all('/api/create-portal-session', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  return res.json({
-    success: true,
-    isFree: true,
-    message: 'Your account has full, permanent unrestricted access to all features at no cost.',
-    url: '/'
-  });
-});
+  const verified = await verifyAccessToken(bearerToken(req));
+  if (!verified) return fail(res, 401, 'Your sign-in could not be verified. Please try again.');
 
-// 8. API: Subscription & Monthly Quota Status (100% Free Forever)
-app.get('/api/subscription-status', apiLimiter, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  try {
-    // Use only cookie-derived identity (set by /api/auth/sync after Supabase login).
-    // Never echo back ADMIN_EMAIL or grant isAdmin based on spoofable request signals.
-    const userId = req.cookies?.user_id || 'usr_demo_001';
-
-    return res.json({
-      success: true,
-      userId,
-      isPro: true,
-      isFreeForever: true,
-      planTier: '100% Free Forever',
-      status: 'active',
-      scansUsed: 0,
-      maxFreeScans: 'Unlimited',
-      scansRemaining: 'unlimited',
-      message: 'All ATS resume evaluation tools and visualizations are 100% free with unlimited scans.'
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
-});
-
-// === Supabase Auth Endpoints (Google, GitHub, Microsoft, Email) ===
-app.get('/auth', (req, res) => {
-  renderEjsPage('auth', req, res, {
-    supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ''
-  });
-});
-
-app.get('/auth/callback', (req, res) => {
-  renderEjsPage('auth-callback', req, res, {
-    supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || ''
-  });
-});
-
-app.post('/api/auth/sync', apiLimiter, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  try {
-    const { id, email, name, avatar } = req.body || {};
-
-    // Input validation
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ success: false, error: 'Email is required.' });
-    }
-    // Basic email format check — not a full RFC parser but catches obvious garbage
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
-      return res.status(400).json({ success: false, error: 'Invalid email address.' });
-    }
-    // Clamp string lengths to prevent oversized payloads hitting the DB
-    const safeEmail = email.trim().toLowerCase().slice(0, 254);
-    const safeName  = typeof name   === 'string' ? name.trim().slice(0, 100)  : safeEmail.split('@')[0];
-    const safeId    = typeof id     === 'string' ? id.trim().slice(0, 64)     : `usr_${Date.now()}`;
-    const safeAvatar= typeof avatar === 'string' ? avatar.trim().slice(0, 512): '';
-
-    let user = db.users.findByEmail(safeEmail);
-    if (!user) {
-      user = db.users.create({
-        id: safeId,
-        email: safeEmail,
-        name: safeName,
-        avatar: safeAvatar,
-        role: ADMIN_EMAIL && safeEmail === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'user'
-      });
-    }
-
-    // Cookies are httpOnly:false so the client JS can read them for display,
-    // but they are not used for any security decision on the server — auth
-    // decisions use the Supabase JWT (requireAdminAuth) or these cookies only
-    // for non-privileged identity (isAdminRequest).
-    const cookieOpts = { httpOnly: false, maxAge: 30 * 24 * 60 * 60 * 1000, path: '/', sameSite: 'lax' };
-    res.cookie('user_id',    user.id,    cookieOpts);
-    res.cookie('user_email', user.email, cookieOpts);
-    if (user.name)   res.cookie('user_name',   user.name,   cookieOpts);
-    if (safeAvatar)  res.cookie('user_avatar', safeAvatar,  cookieOpts);
-
-    // Never return the full user object — omit role/isAdmin to avoid info leak
-    return res.json({ success: true, user: { id: user.id, email: user.email, name: user.name } });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
+  const user = { id: verified.id, email: verified.email, name: verified.name, avatar: verified.avatar };
+  db.users.upsert(user);
+  setSessionCookie(req, res, { ...user, isAdmin: isAdminEmail(user.email, verified.emailConfirmed) });
+  return ok(res, { user: { name: user.name, email: user.email, avatar: user.avatar } });
 });
 
 app.get('/api/auth/me', apiLimiter, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  const userId = req.cookies?.user_id || req.headers['x-user-id'];
-  const user = userId ? db.users.find(userId) : null;
-  return res.json({
-    success: true,
-    authenticated: !!user || !!req.cookies?.user_email,
-    user: user || (req.cookies?.user_email ? {
-      id: req.cookies.user_id || 'usr_session',
-      email: req.cookies.user_email,
-      name: req.cookies.user_name || req.cookies.user_email.split('@')[0],
-      avatar: req.cookies.user_avatar || ''
-    } : null)
+  res.setHeader('Cache-Control', 'no-store');
+  return ok(res, {
+    authenticated: !!req.user,
+    user: req.user ? { name: req.user.name, email: req.user.email, avatar: req.user.avatar } : null
   });
 });
 
 app.post('/api/auth/signout', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.clearCookie('user_id',     { path: '/', sameSite: 'lax' });
-  res.clearCookie('user_email',  { path: '/', sameSite: 'lax' });
-  res.clearCookie('user_name',   { path: '/', sameSite: 'lax' });
-  res.clearCookie('user_avatar', { path: '/', sameSite: 'lax' });
-  return res.json({ success: true, message: 'Signed out successfully.' });
+  clearSessionCookie(req, res);
+  return ok(res);
 });
 
-// 8b. API: Admin Status & Override Toggle Endpoints (require verified admin JWT)
-app.get('/api/admin/status', requireAdminAuth, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  return res.json({
-    success: true,
-    isAdmin: true,
-    globalOverride: isGlobalAdminOverrideActive(),
-    message: 'Admin authenticated. Override state returned.'
-  });
+// ── Signed-in user data ─────────────────────────────────────────────────────
+function requireUser(req, res, next) {
+  if (!req.user) return fail(res, 401, 'Please sign in to view your history.');
+  return next();
+}
+
+app.get('/api/history', apiLimiter, requireUser, (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const items = db.evaluations.listByUser(req.user.id, 20).map(e => ({
+    id: e.id,
+    target: e.targetJobTitle,
+    score: e.similarityScore,
+    rating: e.matchRating,
+    createdAt: e.createdAt
+  }));
+  return ok(res, { items, durable: db.isDurable() });
 });
 
-app.post('/api/admin/toggle-override', requireAdminAuth, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  const currentState = isGlobalAdminOverrideActive();
-  const newState = req.body?.enable !== undefined ? !!req.body.enable : !currentState;
-  setGlobalAdminOverride(newState);
-  return res.json({
-    success: true,
-    globalOverride: newState,
-    message: newState ? 'Admin override activated.' : 'Admin override deactivated.'
-  });
+app.delete('/api/history', apiLimiter, requireUser, (req, res) => {
+  const removed = db.deleteUserData(req.user.id);
+  clearSessionCookie(req, res);
+  return ok(res, { removed });
 });
 
-// 8c. API: Supabase PostgreSQL Database Status & Health Check (admin only)
-app.get('/api/supabase/status', requireAdminAuth, (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
+// ── Operations ──────────────────────────────────────────────────────────────
+app.get('/api/health', apiLimiter, (req, res) => ok(res, {
+  status: 'ok',
+  auth: authConfigured() && sessionsEnabled(),
+  persistence: db.isDurable() ? 'durable' : 'ephemeral'
+}));
+
+app.get('/api/admin/status', requireAdminAuth, (req, res) => ok(res, {
+  isAdmin: true,
+  database: db.supabase.getStatus()
+}));
+
+app.post('/api/admin/db-test', requireAdminAuth, apiLimiter, async (req, res) => {
   try {
-    const status = db.supabase.getStatus();
-    // Return only connectivity metadata — no host/credential details
-    return res.json({
-      success: true,
-      supabase: {
-        connected: status.connected,
-        tablesCreated: status.tablesCreated,
-        lastChecked: status.lastChecked,
-        error: status.error || null
-      }
-    });
+    return ok(res, { database: await db.supabase.initialize() });
   } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
+    return fail(res, 500, getSafeErrorMessage(err));
   }
 });
 
-app.post('/api/supabase/test', requireAdminAuth, apiLimiter, async (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  try {
-    const result = await db.supabase.initialize();
-    return res.json({
-      success: true,
-      supabase: {
-        connected: result.connected,
-        tablesCreated: result.tablesCreated,
-        lastChecked: result.lastChecked,
-        error: result.error || null
-      }
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
-  }
+// ── Errors ──────────────────────────────────────────────────────────────────
+app.use('/api', (req, res) => fail(res, 404, `API route not found: ${req.method} ${req.path}`));
+
+app.use((req, res) => {
+  res.status(404).type('html').send('<!DOCTYPE html><html lang="en"><meta charset="utf-8"><title>Not found</title><body style="font-family:system-ui;padding:3rem"><h1>Page not found</h1><p><a href="/">Back to Resume Rater</a></p></body></html>');
 });
 
-// === Development-only test endpoints (100% Free Platform) ===
-if (isDevMode) {
-  app.all(['/api/test/toggle-pro', '/api/test/reset-quota', '/api/test/simulate-limit-reached'], (req, res) => {
-    return res.json({
-      success: true,
-      isPro: true,
-      isFree: true,
-      scansRemaining: 'unlimited',
-      planTier: '100% Free Forever',
-      message: 'Resume Rater is 100% free with unlimited scans. No subscription or paywall active.'
-    });
-  });
-} // end if (isDevMode)
-
-// Routes
-app.get('/', (req, res) => renderIndexDashboard(req, res));
-
-// Legal & Compliance Pages
-app.get('/terms', (req, res) => renderEjsPage('terms', req, res));
-app.get('/terms-of-service', (req, res) => res.redirect(301, '/terms'));
-
-app.get('/privacy', (req, res) => renderEjsPage('privacy', req, res));
-app.get('/privacy-policy', (req, res) => res.redirect(301, '/privacy'));
-
-app.get('/refund', (req, res) => renderEjsPage('refund', req, res));
-app.get('/refund-policy', (req, res) => res.redirect(301, '/refund'));
-
-// Contact Page & Support Form Handler
-app.get('/contact', (req, res) => {
-  renderEjsPage('contact', req, res, {
-    submitted: false,
-    success: false,
-    error: null,
-    name: '',
-    email: '',
-    subject: 'general',
-    message: ''
-  });
-});
-
-app.post('/contact', apiLimiter, (req, res) => {
-  try {
-    const { name, email, subject, message } = req.body || {};
-
-    if (!email || !message) {
-      if (req.accepts('json') && !req.accepts('html')) {
-        return res.status(400).json({ success: false, error: 'Email and message are required.' });
-      }
-      return renderEjsPage('contact', req, res, {
-        submitted: false,
-        success: false,
-        error: 'Please provide both your email address and message.',
-        name: name || '',
-        email: email || '',
-        subject: subject || 'general',
-        message: message || ''
-      });
-    }
-
-    // Save contact entry in DB
-    const savedContact = db.contacts.create({
-      name: name || 'Anonymous',
-      email,
-      subject: subject || 'general',
-      message
-    });
-
-    console.log(`[Contact Support] New message received from ${email} (${subject}):`, savedContact.id);
-
-    if (req.accepts('json') && !req.accepts('html')) {
-      return res.json({
-        success: true,
-        message: 'Your support inquiry has been received. We will respond promptly.',
-        contactId: savedContact.id
-      });
-    }
-
-    return renderEjsPage('contact', req, res, {
-      submitted: true,
-      success: true,
-      error: null,
-      senderEmail: email,
-      name: '',
-      email: '',
-      subject: 'general',
-      message: ''
-    });
-  } catch (err) {
-    console.error('Contact submission error:', err);
-    if (req.accepts('json') && !req.accepts('html')) {
-      return res.status(500).json({ success: false, error: 'Failed to process support request.' });
-    }
-    return renderEjsPage('contact', req, res, {
-      submitted: false,
-      success: false,
-      error: 'An unexpected error occurred while sending your message. Please try again or use the contact details on this page.',
-      name: req.body?.name || '',
-      email: req.body?.email || '',
-      subject: req.body?.subject || 'general',
-      message: req.body?.message || ''
-    });
-  }
-});
-
-app.post('/upload', uploadLimiter, (req, res, next) => {
-  upload.fields([
-    { name: 'resume', maxCount: 1 },
-    { name: 'job_description', maxCount: 1 }
-  ])(req, res, err => {
-    if (err) {
-      const msg = (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE')
-        ? 'File size exceeds 4MB limit. Please upload a smaller PDF.'
-        : (isDevMode ? (err.message || 'File upload failed.') : 'File upload failed.');
-      return renderIndexDashboard(req, res, { error: msg });
-    }
-    next();
-  });
-}, async (req, res) => {
-  const uploadedFiles = [];
-  try {
-    const files = req.files || {};
-    const resumeFile = files.resume ? files.resume[0] : null;
-    const jobDescriptionFile = files.job_description ? files.job_description[0] : null;
-    if (resumeFile) uploadedFiles.push(resumeFile.path);
-    if (jobDescriptionFile) uploadedFiles.push(jobDescriptionFile.path);
-
-    const admin = isAdminRequest(req);
-    const userId = admin ? 'usr_admin_saad' : (req.headers['x-user-id'] || 'usr_demo_001');
-    let user = admin ? getAdminUser() : db.users.find(userId);
-    if (!user) {
-      user = db.users.create({ id: userId, email: admin ? ADMIN_EMAIL : 'candidate@example.com', name: admin ? 'Saad Ali (Admin)' : 'Demo Candidate' });
-    }
-    const sub = admin ? getAdminSubscription() : db.subscriptions.findActiveByUserId(userId);
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const usage = admin
-      ? { scansUsed: 0, maxFreeScans: 999999, scansRemaining: 'unlimited' }
-      : db.userUsage.getMonthlyUsage(userId, currentMonth);
-
-    // All users have 100% Free, Unlimited ATS scans - quota check bypassed
-
-    const jobDescriptionText = req.body.job_description_text ? req.body.job_description_text.trim() : '';
-    const jobKeywords = req.body.job_keywords ? req.body.job_keywords.trim() : '';
-
-    if (!resumeFile || (!jobDescriptionFile && !jobDescriptionText && !jobKeywords)) {
-      return renderIndexDashboard(req, res, {
-        error: 'No file part',
-        prediction_category: null,
-        resume_match_rating: null,
-        numerical_similarity_score: null,
-        csv_data: null,
-        billing: {
-          isPro: !!sub,
-          planTier: sub?.planTier || 'free',
-          scansUsed: usage.scansUsed,
-          maxFreeScans: usage.maxFreeScans,
-          scansRemaining: sub ? 'unlimited' : Math.max(0, usage.maxFreeScans - usage.scansUsed)
-        }
-      });
-    }
-
-    // Extract text from resume PDF
-    const resumeText = await pdfToText(resumeFile.path);
-    const cleanedResume = cleanResume(resumeText);
-
-    // Extract sections
-    const resumeSections = {
-      Education: extractSectionRegex(resumeText, 'Education', getSectionTerminators('Education')),
-      Experience: extractSectionRegex(resumeText, 'Experience', getSectionTerminators('Experience')),
-      Skills: extractSectionRegex(resumeText, 'Skills', getSectionTerminators('Skills')),
-      Projects: extractSectionRegex(resumeText, 'Projects', getSectionTerminators('Projects'))
-    };
-
-    // Determine Job Description text
-    let jdRawText = '';
-    if (jobDescriptionFile) {
-      jdRawText = await pdfToText(jobDescriptionFile.path);
-    } else if (jobDescriptionText) {
-      jdRawText = jobDescriptionText;
-    } else if (jobKeywords) {
-      jdRawText = jobKeywords;
-    } else {
-      jdRawText = resumeSections.Education || '';
-    }
-
-    const cleanedJobDescription = cleanResume(jdRawText);
-
-    // Vectors and Similarity
-    const resumeVec = computeTfidfVector(cleanedResume);
-    const jdVec = computeTfidfVector(cleanedJobDescription);
-
-    const predictionId = predictCategory(cleanedResume);
-    const { matchRating, similarityScore } = rateResumeSimilarity(resumeVec, jdVec);
-    const roundedSimilarityScore = Number(similarityScore.toFixed(2));
-
-    const name = resumeFile.originalname || 'Unknown';
-    const csvData = {
-      Name: name,
-      Category: predictionId,
-      Education: resumeSections.Education,
-      Experience: resumeSections.Experience,
-      Skills: resumeSections.Skills,
-      Projects: resumeSections.Projects,
-      'Probability Score': roundedSimilarityScore
-    };
-    saveToCsv(csvData);
-
-    // Increment scan analytics count
-    db.userUsage.incrementScan(userId, currentMonth);
-    const updatedUsage = db.userUsage.getMonthlyUsage(userId, currentMonth);
-
-    // Persist to database
-    const savedResume = db.resumes.create({
-      userId,
-      title: name.replace(/\.pdf$/i, ''),
-      filename: name,
-      fileSizeBytes: resumeFile.size,
-      pageCount: 1,
-      rawText: resumeText,
-      cleanedText: cleanedResume,
-      parsedSections: resumeSections,
-      detectedCategory: predictionId
-    });
-
-    db.evaluations.create({
-      userId,
-      resumeId: savedResume.id,
-      targetJobTitle: jobKeywords || 'Evaluated Job',
-      similarityScore: roundedSimilarityScore,
-      matchRating,
-      dimensions: [],
-      keywordGaps: []
-    });
-
-    const csvDataForTemplate = [
-      { Section: 'Education', Content: resumeSections.Education },
-      { Section: 'Experience', Content: resumeSections.Experience },
-      { Section: 'Skills', Content: resumeSections.Skills },
-      { Section: 'Projects', Content: resumeSections.Projects }
-    ];
-
-    return renderIndexDashboard(req, res, {
-      error: null,
-      prediction_category: predictionId,
-      resume_match_rating: matchRating,
-      numerical_similarity_score: roundedSimilarityScore,
-      csv_data: csvDataForTemplate,
-      isAdmin: admin,
-      billing: {
-        isAdmin: admin,
-        isPro: true,
-        isFreeForever: true,
-        planTier: '100% Free Forever',
-        scansUsed: updatedUsage.scansUsed,
-        maxFreeScans: 'Unlimited',
-        scansRemaining: 'unlimited',
-        unrestrictedAccess: true
-      }
-    });
-  } catch (err) {
-    console.error('Error handling upload:', err);
-    return renderIndexDashboard(req, res, {
-      error: 'An error occurred while evaluating the resume.' + (isDevMode ? ' ' + err.message : ''),
-      prediction_category: null,
-      resume_match_rating: null,
-      numerical_similarity_score: null,
-      csv_data: null
-    });
-  } finally {
-    uploadedFiles.forEach(fp => cleanupFile(fp));
-  }
-});
-
-// Train classifier on startup
-trainClassifier();
-
-// Dedicated API 404 handler: Ensures any unhandled /api/* request receives JSON, NEVER HTML
-app.use('/api', (req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  return res.status(404).json({
-    success: false,
-    error: `API route not found: ${req.method} ${req.originalUrl || req.url}`
-  });
-});
-
-// Global Express error handler to prevent serverless function crashes
+// eslint-disable-next-line no-unused-vars
 app.use((err, req, res, next) => {
-  console.error('Global Server Error:', err);
-  if (res.headersSent) {
-    return next(err);
+  const status = err.status && err.status >= 400 && err.status < 600 ? err.status : 500;
+  if (status >= 500) console.error('Unhandled error:', err);
+  if (res.headersSent) return;
+  if (req.path.startsWith('/api/') || req.accepts(['html', 'json']) === 'json') {
+    return fail(res, status, status >= 500 ? getSafeErrorMessage(err, 'An unexpected server error occurred.') : (err.expose ? err.message : 'Bad request.'));
   }
-
-  // All API routes, AJAX/fetch requests, or Accept: application/json MUST receive JSON, NEVER HTML
-  const isApiRoute = req.path.startsWith('/api/') || req.xhr || req.headers.accept?.includes('application/json');
-  if (isApiRoute) {
-    res.setHeader('Content-Type', 'application/json');
-    return res.status(err.status || 500).json({
-      success: false,
-      error: getSafeErrorMessage(err, 'An unexpected server error occurred.')
-    });
-  }
-
-  if (req.accepts('html')) {
-    return res.status(500).send('<!DOCTYPE html><html><body><h2>Resume Rater Server Error</h2><p>An unexpected error occurred. Please try again.</p></body></html>');
-  }
-
-  res.setHeader('Content-Type', 'application/json');
-  return res.status(500).json({ success: false, error: getSafeErrorMessage(err) });
+  return res.status(status).type('html').send('<!DOCTYPE html><title>Error</title><p>Something went wrong. Please try again.</p>');
 });
 
-// Listen on port only when run directly (not under Vercel serverless functions)
-const isServerlessRuntime = !!(
-  process.env.VERCEL ||
-  process.env.AWS_LAMBDA_FUNCTION_NAME ||
-  process.env.NOW_REGION ||
-  process.env.VERCEL_ENV
-);
-
-if (!isServerlessRuntime) {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Resume Rater app listening on http://0.0.0.0:${PORT}`);
+// Listen only when run directly (not when imported by Vercel or tests).
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  const PORT = Number(process.env.PORT) || 3000;
+  app.listen(PORT, () => {
+    console.log(`Resume Rater listening on http://localhost:${PORT} (${isProduction ? 'production' : 'development'})`);
   });
 }
 
-export { app, computeTfidfVector, rateResumeSimilarity };
+export { app };
 export default app;

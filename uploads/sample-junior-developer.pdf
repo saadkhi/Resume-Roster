@@ -1,0 +1,48 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1014 >>
+stream
+BT /F1 10 Tf 48 760 Td (Sam Whitaker) Tj ET
+BT /F1 10 Tf 48 746 Td (sam.whitaker@example.com | Portland, OR) Tj ET
+BT /F1 10 Tf 48 732 Td () Tj ET
+BT /F1 10 Tf 48 718 Td (EDUCATION) Tj ET
+BT /F1 10 Tf 48 704 Td (B.S. Information Systems, Cascade University \(2020 - 2024\)) Tj ET
+BT /F1 10 Tf 48 690 Td () Tj ET
+BT /F1 10 Tf 48 676 Td (SKILLS) Tj ET
+BT /F1 10 Tf 48 662 Td (Python, JavaScript, HTML, CSS, SQL, Git) Tj ET
+BT /F1 10 Tf 48 648 Td () Tj ET
+BT /F1 10 Tf 48 634 Td (EXPERIENCE) Tj ET
+BT /F1 10 Tf 48 620 Td (IT Support Intern, Cascade Health \(2023\)) Tj ET
+BT /F1 10 Tf 48 606 Td (- Resolved help desk tickets and maintained workstations.) Tj ET
+BT /F1 10 Tf 48 592 Td (- Wrote small Python scripts to automate account reports.) Tj ET
+BT /F1 10 Tf 48 578 Td () Tj ET
+BT /F1 10 Tf 48 564 Td (PROJECTS) Tj ET
+BT /F1 10 Tf 48 550 Td (Task Tracker: Flask app with SQLite for managing personal to-do lists.) Tj ET
+BT /F1 10 Tf 48 536 Td (Weather Dashboard: JavaScript page using a public weather API.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000001307 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1377
+%%EOF

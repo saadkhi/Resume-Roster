@@ -1,0 +1,56 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 1818 >>
+stream
+BT /F1 10 Tf 48 760 Td (Mia Alvarez) Tj ET
+BT /F1 10 Tf 48 746 Td (mia.alvarez@example.com | \(555\) 010-3302 | Denver, CO | github.com/example-malvarez) Tj ET
+BT /F1 10 Tf 48 732 Td () Tj ET
+BT /F1 10 Tf 48 718 Td (SUMMARY) Tj ET
+BT /F1 10 Tf 48 704 Td (Front-end developer with 3 years of experience building accessible, responsive React applications.) Tj ET
+BT /F1 10 Tf 48 690 Td () Tj ET
+BT /F1 10 Tf 48 676 Td (EXPERIENCE) Tj ET
+BT /F1 10 Tf 48 662 Td (Front-End Developer, Pixelharbor \(2022 - Present\)) Tj ET
+BT /F1 10 Tf 48 648 Td (- Built a React and TypeScript component library adopted by 4 product teams.) Tj ET
+BT /F1 10 Tf 48 634 Td (- Improved Lighthouse performance score from 62 to 94 through code splitting and image optimization.) Tj ET
+BT /F1 10 Tf 48 620 Td (- Implemented responsive design and WCAG accessibility fixes across the checkout flow.) Tj ET
+BT /F1 10 Tf 48 606 Td (Web Developer Intern, Studio Fern \(2021\)) Tj ET
+BT /F1 10 Tf 48 592 Td (- Developed marketing sites in HTML, CSS and JavaScript with a headless CMS.) Tj ET
+BT /F1 10 Tf 48 578 Td () Tj ET
+BT /F1 10 Tf 48 564 Td (SKILLS) Tj ET
+BT /F1 10 Tf 48 550 Td (Frontend: HTML, CSS, JavaScript, TypeScript, React, Redux, responsive design, accessibility) Tj ET
+BT /F1 10 Tf 48 536 Td (Backend: Node.js, Express, REST APIs, MongoDB) Tj ET
+BT /F1 10 Tf 48 522 Td (Tools: Git, Webpack, Jest, Figma) Tj ET
+BT /F1 10 Tf 48 508 Td () Tj ET
+BT /F1 10 Tf 48 494 Td (PROJECTS) Tj ET
+BT /F1 10 Tf 48 480 Td (Recipe Planner: React and Node.js app with 1,200 monthly users.) Tj ET
+BT /F1 10 Tf 48 466 Td (Portfolio Generator: Static site generator with Markdown support.) Tj ET
+BT /F1 10 Tf 48 452 Td () Tj ET
+BT /F1 10 Tf 48 438 Td (EDUCATION) Tj ET
+BT /F1 10 Tf 48 424 Td (B.A. Interaction Design, Riverside College \(2017 - 2021\)) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002111 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2181
+%%EOF

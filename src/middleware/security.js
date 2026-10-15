@@ -1,6 +1,4 @@
-import fs from 'fs';
 import rateLimit from 'express-rate-limit';
-import { isAdminRequest } from './admin.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -9,50 +7,60 @@ export function getSafeErrorMessage(err, fallback = 'An unexpected error occurre
   return fallback;
 }
 
-export const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false, xForwardedForHeader: false },
-  skip: (req) => isAdminRequest(req),
-  handler: (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(429).json({ success: false, error: 'Too many requests. Please slow down.' });
-  }
-});
-
-export const uploadLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: { trustProxy: false, xForwardedForHeader: false },
-  skip: (req) => isAdminRequest(req),
-  handler: (req, res) => {
-    res.setHeader('Content-Type', 'application/json');
-    res.status(429).json({ success: false, error: 'Too many upload requests. Please wait a moment.' });
-  }
-});
-
-export function validatePdfMagicBytes(filePath) {
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    const buf = Buffer.alloc(5);
-    fs.readSync(fd, buf, 0, 5, 0);
-    fs.closeSync(fd);
-    return buf.toString('ascii') === '%PDF-';
-  } catch {
-    return false;
-  }
+function limiter(max, message) {
+  return rateLimit({
+    windowMs: 60 * 1000,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { trustProxy: false, xForwardedForHeader: false },
+    handler: (req, res) => res.status(429).json({ success: false, error: message })
+  });
 }
 
-export function cleanupFile(filePath) {
+export const apiLimiter = limiter(120, 'Too many requests. Please slow down.');
+export const uploadLimiter = limiter(20, 'Too many uploads. Please wait a moment and try again.');
+export const authLimiter = limiter(20, 'Too many sign-in attempts. Please wait a moment.');
+
+/** True when the buffer starts with the PDF magic number. */
+export function isPdfBuffer(buf) {
+  return Buffer.isBuffer(buf) && buf.length >= 5 && buf.subarray(0, 5).toString('ascii') === '%PDF-';
+}
+
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https://*.supabase.co",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'"
+].join('; ');
+
+export function securityHeaders(req, res, next) {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (isProduction) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  next();
+}
+
+/**
+ * CSRF defence for cookie-authenticated, state-changing requests: if the
+ * browser sent an Origin header it must match the host being served.
+ */
+export function sameOriginGuard(req, res, next) {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return next();
+  const origin = req.headers.origin;
+  if (!origin) return next();
+  const host = req.headers['x-forwarded-host'] || req.headers.host;
   try {
-    if (filePath && fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-  } catch {
-    // Best-effort cleanup
-  }
+    if (new URL(origin).host === host) return next();
+  } catch { /* fall through */ }
+  return res.status(403).json({ success: false, error: 'Cross-origin request blocked.' });
 }

@@ -1,40 +1,17 @@
-<%- include('partials/head', { pageTitle: 'Authenticating — Resume Rater', includeSupabase: true }) %>
-<%- include('partials/header', { showMainNav: false }) %>
-    <div class="spinner"></div>
-    <h2>Authenticating with Supabase...</h2>
-    <p>Completing secure sign in and preparing your free ATS dashboard.</p>
+<%- include('partials/head', { pageTitle: 'Signing you in' }) %>
+<%- include('partials/header') %>
 
-    <script>
-        const SUPABASE_URL = '<%= locals.supabaseUrl || "" %>';
-        const SUPABASE_ANON_KEY = '<%= locals.supabaseAnonKey || "" %>';
+<main id="main-content" class="container" data-page="auth-callback">
+    <div class="center-screen" role="status" aria-live="polite">
+        <div class="spinner" id="callbackSpinner" aria-hidden="true"></div>
+        <h1 style="font-size:1.25rem">Signing you in…</h1>
+        <p class="muted" id="callbackMessage">This only takes a moment.</p>
+        <p style="margin-top:1rem" id="callbackBack" hidden><a class="btn btn-secondary" href="/auth">Back to sign in</a></p>
+    </div>
+</main>
 
-        async function processAuth() {
-            try {
-                if (window.supabase && SUPABASE_URL) {
-                    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                    const { data: { session }, error } = await client.auth.getSession();
-                    if (session && session.user) {
-                        await fetch('/api/auth/sync', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                id: session.user.id,
-                                email: session.user.email,
-                                name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email?.split('@')[0],
-                                avatar: session.user.user_metadata?.avatar_url || ''
-                            })
-                        });
-                    }
-                }
-            } catch (err) {
-                console.warn('OAuth session processing notice:', err.message);
-            } finally {
-                window.location.href = '/';
-            }
-        }
-
-        processAuth();
-    </script>
-    <%- include('partials/footer') %>
+<%- include('partials/footer') %>
+<script src="<%= asset('/vendor/supabase.js') %>" defer></script>
+<script src="<%= asset('/js/auth.js') %>" defer></script>
 </body>
 </html>

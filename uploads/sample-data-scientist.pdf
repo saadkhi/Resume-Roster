@@ -1,0 +1,58 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 2100 >>
+stream
+BT /F1 10 Tf 48 760 Td (Priya Raman) Tj ET
+BT /F1 10 Tf 48 746 Td (priya.raman@example.com | \(555\) 010-4421 | Austin, TX | linkedin.com/in/priya-raman-example) Tj ET
+BT /F1 10 Tf 48 732 Td () Tj ET
+BT /F1 10 Tf 48 718 Td (SUMMARY) Tj ET
+BT /F1 10 Tf 48 704 Td (Data scientist with 4 years of experience building forecasting and classification models in Python and SQL.) Tj ET
+BT /F1 10 Tf 48 690 Td () Tj ET
+BT /F1 10 Tf 48 676 Td (EXPERIENCE) Tj ET
+BT /F1 10 Tf 48 662 Td (Data Scientist, Brightloop Analytics \(2022 - Present\)) Tj ET
+BT /F1 10 Tf 48 648 Td (- Built churn prediction models with scikit-learn and XGBoost, improving retention campaign precision by 23%.) Tj ET
+BT /F1 10 Tf 48 634 Td (- Designed A/B testing framework and statistical analysis used by 6 product teams.) Tj ET
+BT /F1 10 Tf 48 620 Td (- Automated feature pipelines in Airflow and SQL, reducing weekly reporting time by 15 hours.) Tj ET
+BT /F1 10 Tf 48 606 Td (Junior Data Analyst, Northgate Retail \(2020 - 2022\)) Tj ET
+BT /F1 10 Tf 48 592 Td (- Created Tableau dashboards tracking revenue and inventory KPIs for 40+ stores.) Tj ET
+BT /F1 10 Tf 48 578 Td (- Performed regression analysis to forecast demand with 91% accuracy.) Tj ET
+BT /F1 10 Tf 48 564 Td () Tj ET
+BT /F1 10 Tf 48 550 Td (SKILLS) Tj ET
+BT /F1 10 Tf 48 536 Td (Languages: Python, SQL, R) Tj ET
+BT /F1 10 Tf 48 522 Td (Machine Learning: scikit-learn, XGBoost, TensorFlow, statistics, deep learning, predictive modeling) Tj ET
+BT /F1 10 Tf 48 508 Td (Tools: Pandas, NumPy, Airflow, Tableau, Git, Docker, AWS) Tj ET
+BT /F1 10 Tf 48 494 Td () Tj ET
+BT /F1 10 Tf 48 480 Td (PROJECTS) Tj ET
+BT /F1 10 Tf 48 466 Td (Demand Forecasting Service: Time-series model served over a REST API with Flask and Docker.) Tj ET
+BT /F1 10 Tf 48 452 Td (Customer Segmentation: Clustering and visualization of 2M customer records.) Tj ET
+BT /F1 10 Tf 48 438 Td () Tj ET
+BT /F1 10 Tf 48 424 Td (EDUCATION) Tj ET
+BT /F1 10 Tf 48 410 Td (M.S. Statistics, University of Texas \(2018 - 2020\)) Tj ET
+BT /F1 10 Tf 48 396 Td (B.S. Mathematics, State College \(2014 - 2018\)) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000002393 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+2463
+%%EOF

@@ -1,67 +1,35 @@
 <body>
-    <!-- Skip navigation link (WCAG 2.4.1) -->
     <a class="skip-link" href="#main-content">Skip to main content</a>
 
-    <header class="top-bar" role="banner">
-        <div class="top-bar-inner site-container">
-            <a href="/" class="brand-wordmark" aria-label="Resume Rater — home">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                    <polyline points="14 2 14 8 20 8"></polyline>
-                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                    <polyline points="10 9 9 9 8 9"></polyline>
-                </svg>
+    <header class="site-header">
+        <div class="container">
+            <a href="/" class="brand" aria-label="Resume Rater home">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>
+                </span>
                 Resume Rater
             </a>
-            <% if (locals.showMainNav !== false) { %>
-            <nav class="nav-links" id="mainNav" aria-label="Main navigation">
-                <a href="#upload-section" class="nav-link">PDF Parser</a>
-                <a href="#tab-recharts" class="nav-link nav-tab-link" data-tab-target="tab-recharts">Match Radar</a>
-                <a href="#tab-sections" class="nav-link nav-tab-link" data-tab-target="tab-sections">CV Sections</a>
-                <a href="#tab-matcher" class="nav-link nav-tab-link" data-tab-target="tab-matcher">Role Matcher</a>
-                <a href="#tab-jobs" class="nav-link nav-tab-link" data-tab-target="tab-jobs">Job Listings</a>
+
+            <nav class="nav" id="siteNav" aria-label="Main">
+                <a href="/">Resume checker</a>
+                <a href="/privacy">Privacy</a>
+                <a href="/contact">Contact</a>
             </nav>
-            <!-- Mobile menu button (visible only when nav is hidden at ≤860px) -->
-            <button type="button" class="nav-menu-btn" id="btnNavMenu"
-                    aria-expanded="false" aria-controls="mainNav"
-                    aria-label="Open navigation menu">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                    <line x1="3" y1="6" x2="21" y2="6"></line>
-                    <line x1="3" y1="12" x2="21" y2="12"></line>
-                    <line x1="3" y1="18" x2="21" y2="18"></line>
-                </svg>
+
+            <span class="header-spacer"></span>
+
+            <div class="user-menu" id="userMenu">
+                <% if (locals.currentUser) { %>
+                    <span class="avatar" aria-hidden="true"><%= (currentUser.name || currentUser.email || '?').charAt(0).toUpperCase() %></span>
+                    <span class="user-name"><%= currentUser.name || currentUser.email %></span>
+                    <button type="button" class="btn btn-secondary btn-sm" id="btnSignOut">Sign out</button>
+                <% } else if (locals.authEnabled) { %>
+                    <a href="/auth" class="btn btn-secondary btn-sm">Sign in</a>
+                <% } %>
+            </div>
+
+            <button type="button" class="btn btn-ghost btn-sm menu-btn" id="btnMenu" aria-expanded="false" aria-controls="siteNav" aria-label="Toggle menu">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
             </button>
-            <% } %>
         </div>
     </header>
-
-    <% if (locals.showMainNav !== false) { %>
-    <script>
-    (function() {
-        var btn = document.getElementById('btnNavMenu');
-        var nav = document.getElementById('mainNav');
-        if (!btn || !nav) return;
-        btn.addEventListener('click', function() {
-            var expanded = btn.getAttribute('aria-expanded') === 'true';
-            btn.setAttribute('aria-expanded', String(!expanded));
-            nav.classList.toggle('nav-open', !expanded);
-        });
-        // Close menu on nav link click (single-page anchor navigation)
-        nav.querySelectorAll('.nav-link').forEach(function(link) {
-            link.addEventListener('click', function() {
-                btn.setAttribute('aria-expanded', 'false');
-                nav.classList.remove('nav-open');
-            });
-        });
-        // Close on Escape
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape' && btn.getAttribute('aria-expanded') === 'true') {
-                btn.setAttribute('aria-expanded', 'false');
-                nav.classList.remove('nav-open');
-                btn.focus();
-            }
-        });
-    })();
-    </script>
-    <% } %>

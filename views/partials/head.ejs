@@ -2,17 +2,16 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><%= locals.pageTitle || 'Resume Rater' %></title>
-    <meta name="description" content="<%= locals.pageDescription || 'ATS Resume Scorer — TF-IDF cosine match, competency radar, CV section parser.' %>">
-    <meta property="og:title" content="<%= locals.pageTitle || 'Resume Rater' %>">
-    <meta property="og:description" content="<%= locals.pageDescription || 'ATS Resume Scorer — TF-IDF cosine match, competency radar, CV section parser.' %>">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <% const siteTitle = 'Resume Rater'; %>
+    <title><%= locals.pageTitle ? pageTitle + ' · ' + siteTitle : siteTitle + ': free ATS resume checker' %></title>
+    <meta name="description" content="<%= locals.pageDescription || 'Check how well your resume matches a job. Upload a PDF to get a match score, missing keywords and an ATS-readiness checklist.' %>">
+    <meta name="theme-color" content="#2455e6">
+    <meta property="og:title" content="<%= locals.pageTitle || siteTitle %>">
+    <meta property="og:type" content="website">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232455e6'/%3E%3Cpath d='M10 7h8l5 5v13H10z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M13 17h7M13 21h7' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-    <link rel="stylesheet" href="/app.css">
-    <% if (locals.includeSupabase !== false) { %>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <% } %>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+    <link rel="stylesheet" href="<%= asset('/app.css') %>">
 </head>
