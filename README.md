@@ -10,24 +10,28 @@ remote jobs accept candidates in Pakistan unless the source says so.
 ## Source support and verification
 
 All adapters target Python 3.11 in a local/Replit CLI run or the scheduled
-GitHub Actions workflow. No provider credentials are configured. “Last success”
-means a completed live adapter run, not a successful HTTP request in research;
-none has been recorded yet. Successful run timestamps and errors are written to
-`source_health.json`.
+GitHub Actions workflow. No provider credentials are configured. Successful run
+timestamps and errors are written to `source_health.json`. The existing
+2026-10-12 history records successful fetches from Remote OK and We Work
+Remotely, but all fetched listings were rejected by the one-hour freshness
+filter. The 2026-10-14 live attempt was stopped after LinkedIn returned repeated
+HTTP 429 responses and did not produce a completed run summary. The older
+JobSpy history aggregates boards, so it cannot establish a last-success time
+for any individual JobSpy board.
 
 | Source | Availability | Auth and extra configuration | Restrictions and scope | Verification and last success |
 | --- | --- | --- | --- | --- |
-| Remote OK | Implemented; public JSON API | No API key configured for the public endpoint | Attribute Remote OK and link the original posting; source-provided URL is retained | Endpoint response was inspected during setup; adapter has mocked tests only. Last success: none recorded |
-| We Work Remotely | Implemented; publisher RSS feed | No credentials configured | Use the publisher's feed and retain its original posting link | Mocked XML tests; no live adapter run. Last success: none recorded |
-| Hacker News hiring thread | Implemented; official Firebase API | No credentials configured | Checks a bounded set of current-month Ask HN stories/comments; only explicit company and role labels are accepted. Community posts are lower confidence | Mocked API tests; no live vacancy extraction. Last success: none recorded |
-| LinkedIn (`linkedin`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Provider access controls/rate limits may block or restrict automated collection | Package identifier/signature verified; no live search. Last success: none recorded |
-| Indeed (`indeed`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; subject to provider access controls | Adapter parameters and skip behavior covered by tests; no live search. Last success: none recorded |
-| Glassdoor (`glassdoor`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; upstream notes day-level posting-age precision and provider limits | Adapter parameters and skip behavior covered by tests; no live search. Last success: none recorded |
-| ZipRecruiter (`zip_recruiter`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Upstream documents US/Canada coverage; access controls may vary | Package identifier verified; no live search. Last success: none recorded |
-| Bayt (`bayt`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Results depend on the country and listings supported by the provider | Package identifier verified; no live search. Last success: none recorded |
-| BDJobs (`bdjobs`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Bangladesh-focused board; location coverage applies | Package identifier verified; no live search. Last success: none recorded |
-| Naukri (`naukri`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | India-focused board; location coverage applies | Package identifier verified; no live search. Last success: none recorded |
-| HelloWork (`hellowork`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | France-focused; French search terms may be more effective | Package identifier verified; no live search. Last success: none recorded |
+| Remote OK | Implemented; public JSON API | No API key configured for the public endpoint | Attribute Remote OK and link the original posting; source-provided URL is retained | Last completed run: 2026-10-12 09:59 UTC; 99 records fetched, all rejected by the 1-hour freshness filter, none inserted |
+| We Work Remotely | Implemented; publisher RSS feed | No credentials configured | Use the publisher's feed and retain its original posting link | Last completed run: 2026-10-12 09:59 UTC; 89 records fetched, all rejected by the 1-hour freshness filter, none inserted |
+| Hacker News hiring thread | Implemented; official Firebase API | No credentials configured | Checks a bounded set of current-month Ask HN stories/comments; only explicit company and role labels are accepted. Community posts are lower confidence | Last completed run: 2026-10-12; current-month thread was not found in the latest 200 stories |
+| LinkedIn (`linkedin`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Provider access controls/rate limits may block or restrict automated collection | Live attempt on 2026-10-14 received repeated HTTP 429 responses and was stopped; no successful run recorded |
+| Indeed (`indeed`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; subject to provider access controls | Adapter parameters and skip behavior covered by tests; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| Glassdoor (`glassdoor`) | JobSpy 1.3.0 adapter | Requires a mapped `country_indeed`; selected by `JOBSPY_SITES` | Skipped for remote and unmapped-location searches; upstream notes day-level posting-age precision and provider limits | Adapter parameters and skip behavior covered by tests; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| ZipRecruiter (`zip_recruiter`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Upstream documents US/Canada coverage; access controls may vary | Package identifier verified; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| Bayt (`bayt`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Results depend on the country and listings supported by the provider | Package identifier verified; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| BDJobs (`bdjobs`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | Bangladesh-focused board; location coverage applies | Package identifier verified; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| Naukri (`naukri`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | India-focused board; location coverage applies | Package identifier verified; historical JobSpy results were aggregated, so no per-board last-success time is available |
+| HelloWork (`hellowork`) | JobSpy 1.3.0 adapter | Selected by `JOBSPY_SITES`; no provider credentials configured | France-focused; French search terms may be more effective | Package identifier verified; historical JobSpy results were aggregated, so no per-board last-success time is available |
 | Google Jobs (`google`) | Disabled | Not configurable | JobSpy's upstream README says Google Jobs is currently unavailable | Rejected during configuration; no run or last-success timestamp |
 
 JobSpy's current README says it supports Python 3.10 or newer and documents the
@@ -130,17 +134,18 @@ startup; schema changes are not currently versioned with migrations.
 
 GitHub-hosted Actions runners are temporary. The default SQLite database does
 **not** persist to the next scheduled run; artifact uploads are downloadable
-backups, not a database restore mechanism. For meaningful hourly deduplication,
-configure a persistent PostgreSQL `DATABASE_URL` as a repository or
+backups, not a database restore mechanism. For deduplication across scheduled
+runs, configure a persistent PostgreSQL `DATABASE_URL` as a repository or
 organization Actions secret. SQLite and PostgreSQL are supported by the ORM,
 but PostgreSQL deployment connectivity has not been verified here.
 
-## Hourly GitHub Actions
+## Twice-daily GitHub Actions
 
-`.github/workflows/scraper.yml` runs at the top of every hour and supports
-manual dispatch. To preserve jobs across runs, configure the Actions secret
-`DATABASE_URL` with a persistent PostgreSQL connection string before enabling
-the schedule. Optional repository variables can override `SEARCH_QUERIES`,
+`.github/workflows/scraper.yml` runs at 12:00 AM and 12:00 PM Asia/Karachi
+(19:00 and 07:00 UTC) and supports manual dispatch. The Replit `Job collector`
+workflow remains a manual, one-cycle run. To preserve jobs across scheduled
+runs, configure the Actions secret `DATABASE_URL` with a persistent PostgreSQL
+connection string. Optional repository variables can override `SEARCH_QUERIES`,
 `SEARCH_LOCATIONS`, `JOBSPY_SITES`, and `ENABLED_SOURCES`. Never set credentials
 as repository variables.
 
