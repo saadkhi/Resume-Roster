@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -12,6 +14,17 @@ from config import Settings
 from scrapers.base import SourceResult
 
 logger = logging.getLogger(__name__)
+
+
+class _LinkedInRateLimitHandler(logging.Handler):
+    def __init__(self, rate_limited: threading.Event):
+        super().__init__(logging.ERROR)
+        self.rate_limited = rate_limited
+
+    def emit(self, record: logging.LogRecord) -> None:
+        if "429" in record.getMessage():
+            self.rate_limited.set()
+
 
 INDEED_COUNTRIES = {
     "united states": "USA",
@@ -48,6 +61,9 @@ class JobSpySource:
     def __init__(self, settings: Settings, site_name: str):
         self.settings = settings
         self.site_name = site_name
+        self._linkedin_lock = threading.Lock()
+        self._linkedin_rate_limited = threading.Event()
+        self._last_linkedin_call: float | None = None
 
     @property
     def name(self) -> str:
@@ -59,6 +75,11 @@ class JobSpySource:
             result.errors.append("JobSpy searches require both query and location")
             result.status = "failed"
             result.finish()
+            return result
+        if self.site_name == "linkedin" and self._linkedin_rate_limited.is_set():
+            result.status = "skipped"
+            result.finish()
+            result.status = "skipped"
             return result
         try:
             from jobspy import scrape_jobs
@@ -86,14 +107,36 @@ class JobSpySource:
             if self.settings.proxy_url:
                 kwargs["proxies"] = [self.settings.proxy_url]
             try:
-                raw_jobs = _to_records(scrape_jobs(**kwargs))
+                if self.site_name == "linkedin":
+                    raw_result, skipped = self._scrape_linkedin(scrape_jobs, kwargs)
+                    if skipped:
+                        result.status = "skipped"
+                        result.finish()
+                        result.status = "skipped"
+                        return result
+                    if self._linkedin_rate_limited.is_set():
+                        result.errors.append(
+                            "LinkedIn returned HTTP 429; remaining LinkedIn searches "
+                            "are paused for this run."
+                        )
+                else:
+                    raw_result = scrape_jobs(**kwargs)
+                raw_jobs = _to_records(raw_result)
                 result.jobs.extend(raw_jobs)
             except Exception as exc:
+                if self.site_name == "linkedin" and "429" in str(exc):
+                    self._linkedin_rate_limited.set()
                 logger.exception(
                     "JobSpy site search failed",
                     extra={"query": query, "location": location, "source": self.site_name},
                 )
-                result.errors.append(f"{self.site_name}: {type(exc).__name__}: {exc}")
+                if self.site_name == "linkedin" and self._linkedin_rate_limited.is_set():
+                    result.errors.append(
+                        "LinkedIn returned HTTP 429; remaining LinkedIn searches "
+                        "are paused for this run."
+                    )
+                else:
+                    result.errors.append(f"{self.site_name}: {type(exc).__name__}: {exc}")
         except ImportError as exc:
             logger.exception("JobSpy dependency unavailable")
             result.errors.append(f"JobSpy dependency unavailable: {exc}")
@@ -107,3 +150,27 @@ class JobSpySource:
         if result.finished_at is None:
             result.finished_at = datetime.now(timezone.utc)
         return result
+
+    def _scrape_linkedin(
+        self, scrape_jobs: Any, kwargs: dict[str, Any]
+    ) -> tuple[Any, bool]:
+        with self._linkedin_lock:
+            if self._linkedin_rate_limited.is_set():
+                return None, True
+            if self._last_linkedin_call is not None:
+                elapsed = time.monotonic() - self._last_linkedin_call
+                delay = self.settings.linkedin_min_interval_seconds - elapsed
+                if delay > 0:
+                    time.sleep(delay)
+            self._last_linkedin_call = time.monotonic()
+            linkedin_logger = logging.getLogger("JobSpy:LinkedIn")
+            handler = _LinkedInRateLimitHandler(self._linkedin_rate_limited)
+            linkedin_logger.addHandler(handler)
+            try:
+                return scrape_jobs(**kwargs), False
+            except Exception as exc:
+                if "429" in str(exc):
+                    self._linkedin_rate_limited.set()
+                raise
+            finally:
+                linkedin_logger.removeHandler(handler)

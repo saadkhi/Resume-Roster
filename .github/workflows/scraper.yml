@@ -48,6 +48,19 @@ jobs:
       - name: Test
         run: pytest
 
+      - name: Require persistent PostgreSQL for scheduled runs
+        if: github.event_name == 'schedule'
+        env:
+          SCHEDULE_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          case "$SCHEDULE_DATABASE_URL" in
+            postgres://*|postgresql://*|postgresql+psycopg2://*) ;;
+            *)
+              echo "::error::Configure a persistent PostgreSQL Actions secret named DATABASE_URL before scheduled collection."
+              exit 1
+              ;;
+          esac
+
       - name: Collect jobs
         id: collect
         run: python main.py

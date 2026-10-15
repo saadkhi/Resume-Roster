@@ -96,6 +96,7 @@ class Settings:
     backoff_base_seconds: float
     backoff_max_seconds: float
     max_concurrent_requests: int
+    linkedin_min_interval_seconds: float
     random_delay_min_seconds: float
     random_delay_max_seconds: float
     max_execution_seconds: int
@@ -182,6 +183,7 @@ def load_config() -> Settings:
         backoff_base_seconds=backoff_base,
         backoff_max_seconds=backoff_max,
         max_concurrent_requests=_int_env("MAX_CONCURRENT_REQUESTS", 4),
+        linkedin_min_interval_seconds=_float_env("LINKEDIN_MIN_INTERVAL_SECONDS", 10.0),
         random_delay_min_seconds=minimum_delay,
         random_delay_max_seconds=maximum_delay,
         max_execution_seconds=_int_env("MAX_EXECUTION_SECONDS", 1800),

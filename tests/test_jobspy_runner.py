@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import logging
 import sys
 import types
+from dataclasses import replace
 
 import pandas as pd
+import pytest
 
 from scrapers.jobspy_runner import JobSpySource
 
@@ -94,3 +97,40 @@ def test_country_required_board_is_skipped_without_fabricating_failure(settings,
     result = JobSpySource(settings, "indeed").fetch("Engineer", "Remote / Worldwide")
     assert result.status == "skipped"
     assert result.errors == []
+
+
+def test_linkedin_429_pauses_remaining_searches_for_this_run(settings, monkeypatch):
+    calls = []
+    module = types.ModuleType("jobspy")
+
+    def scrape_jobs(**kwargs):
+        calls.append(kwargs)
+        logging.getLogger("JobSpy:LinkedIn").error("LinkedIn response status code 429")
+        return pd.DataFrame()
+
+    module.scrape_jobs = scrape_jobs
+    monkeypatch.setitem(sys.modules, "jobspy", module)
+    adapter = JobSpySource(replace(settings, linkedin_min_interval_seconds=0), "linkedin")
+
+    first = adapter.fetch("Engineer", "Pakistan")
+    second = adapter.fetch("Developer", "United Kingdom")
+
+    assert len(calls) == 1
+    assert first.status == "failed"
+    assert "HTTP 429" in first.errors[0]
+    assert second.status == "skipped"
+
+
+def test_linkedin_calls_use_configured_minimum_interval(settings, monkeypatch):
+    delays = []
+    module = types.ModuleType("jobspy")
+    module.scrape_jobs = lambda **kwargs: pd.DataFrame()
+    monkeypatch.setitem(sys.modules, "jobspy", module)
+    monkeypatch.setattr("scrapers.jobspy_runner.time.sleep", delays.append)
+    adapter = JobSpySource(replace(settings, linkedin_min_interval_seconds=10), "linkedin")
+
+    adapter.fetch("Engineer", "Pakistan")
+    adapter.fetch("Developer", "United Kingdom")
+
+    assert len(delays) == 1
+    assert delays[0] == pytest.approx(10, abs=0.2)
