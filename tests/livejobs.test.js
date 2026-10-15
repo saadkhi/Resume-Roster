@@ -122,6 +122,36 @@ describe('fetchLiveJobs', () => {
   });
 });
 
+describe('keyed sources', () => {
+  it('Adzuna never asks for more than 25 results and never exceeds 25 requests a minute', async () => {
+    process.env.ADZUNA_APP_ID = 'id';
+    process.env.ADZUNA_APP_KEY = 'key';
+    try {
+      behaviour = { 'api.adzuna.com': () => json({ results: [] }) };
+      for (let i = 0; i < 40; i++) await fetchLiveJobs({ sources: ['adzuna'], query: 'q' + i });
+      const upstream = calls.filter(c => c.includes('api.adzuna.com'));
+      assert.equal(upstream.length, 25, 'made ' + upstream.length + ' upstream calls');
+      assert.ok(upstream.every(u => /results_per_page=25(&|$)/.test(u)));
+      const r = await fetchLiveJobs({ sources: ['adzuna'], query: 'one more' });
+      assert.match(r.sources[0].error, /request limit/);
+    } finally {
+      delete process.env.ADZUNA_APP_ID;
+      delete process.env.ADZUNA_APP_KEY;
+    }
+  });
+
+  it('parses Reed day-first dates correctly', async () => {
+    process.env.REED_API_KEY = 'k';
+    try {
+      behaviour = { 'reed.co.uk': json({ results: [{ jobId: 1, jobTitle: 'Dev', employerName: 'A', locationName: 'London', jobUrl: 'https://www.reed.co.uk/jobs/1', date: '12/09/2026' }] }) };
+      const r = await fetchLiveJobs({ sources: ['reed'] });
+      assert.equal(r.jobs[0].postedAt.slice(0, 10), '2026-09-12');
+    } finally {
+      delete process.env.REED_API_KEY;
+    }
+  });
+});
+
 describe('providers', () => {
   it('covers the keyless public-apis job sources and gates keyed ones', () => {
     const keyless = PROVIDERS.filter(p => !p.envKeys).map(p => p.id).sort();

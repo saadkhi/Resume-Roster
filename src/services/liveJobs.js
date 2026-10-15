@@ -49,6 +49,12 @@ function safeUrl(u) {
 const str = (v, max = 200) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 const toIso = (v) => {
   if (v === null || v === undefined || v === '') return null;
+  // Reed sends day-first dates ("15/10/2026"); `new Date` would read them month-first.
+  const dmy = typeof v === 'string' && /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.trim());
+  if (dmy) {
+    const d = new Date(Date.UTC(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1])));
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
   const d = typeof v === 'number' ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
@@ -220,7 +226,7 @@ export const PROVIDERS = [
       const country = (process.env.ADZUNA_COUNTRY || 'us').toLowerCase();
       const p = new URLSearchParams({
         app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY,
-        results_per_page: String(PER_PROVIDER_LIMIT), 'content-type': 'application/json'
+        results_per_page: '25', 'content-type': 'application/json'
       });
       if (q) p.set('what', q);
       const data = await getJson(`https://api.adzuna.com/v1/api/jobs/${encodeURIComponent(country)}/search/1?${p}`);
@@ -294,12 +300,42 @@ async function cached(key, ttl, load) {
   return p;
 }
 
+/**
+ * Upstream request budgets protect free-tier quotas. Counters are per server
+ * instance (serverless cold starts reset them), so they are a safety net on top
+ * of the response cache, not an exact meter. Override with e.g. ADZUNA_PER_MINUTE.
+ */
+const num = (name, fallback) => Math.max(1, Number(process.env[name]) || fallback);
+const BUDGETS = {
+  adzuna: () => [{ windowMs: 60_000, max: Math.min(25, num('ADZUNA_PER_MINUTE', 25)) }, { windowMs: 86_400_000, max: num('ADZUNA_PER_DAY', 200) }],
+  jooble: () => [{ windowMs: 86_400_000, max: num('JOOBLE_PER_DAY', 150) }],
+  findwork: () => [{ windowMs: 60_000, max: Math.min(60, num('FINDWORK_PER_MINUTE', 30)) }],
+  reed: () => [{ windowMs: 86_400_000, max: num('REED_PER_DAY', 500) }]
+};
+const usage = new Map(); // provider id -> timestamps[]
+
+function consumeBudget(id) {
+  const rules = BUDGETS[id]?.();
+  if (!rules) return;
+  const now = Date.now();
+  const stamps = (usage.get(id) || []).filter(t => now - t < 86_400_000);
+  for (const r of rules) {
+    if (stamps.filter(t => now - t < r.windowMs).length >= r.max) {
+      usage.set(id, stamps);
+      throw new Error('request limit reached (protecting free quota)');
+    }
+  }
+  stamps.push(now);
+  usage.set(id, stamps);
+}
+
 const failures = new Map(); // provider id -> { until, error }
 
 export function clearLiveJobsCache() {
   cache.clear();
   inflight.clear();
   failures.clear();
+  usage.clear();
 }
 
 // ── aggregation ─────────────────────────────────────────────────────────────
@@ -318,14 +354,17 @@ async function runProvider(p, params) {
     } else {
       const term = params.q || params.seed || '';
       jobs = await cached(`q:${p.id}:${term}:${params.remote}`, QUERY_TTL_MS,
-        () => p.fetch({ q: term, remote: params.remote }).then(list => list.filter(Boolean)));
+        () => {
+          consumeBudget(p.id);
+          return p.fetch({ q: term, remote: params.remote }).then(list => list.filter(Boolean));
+        });
     }
     if (params.q) jobs = jobs.filter(j => matchesQuery(j, params.q));
     if (params.remote) jobs = jobs.filter(looksRemote);
     return { id: p.id, name: p.name, homepage: p.homepage, status: 'ok', count: jobs.length, ms: Date.now() - started, jobs };
   } catch (err) {
     const message = err.name === 'TimeoutError' ? 'timed out' : String(err.message || 'failed').slice(0, 80);
-    failures.set(p.id, { until: Date.now() + FAILURE_BACKOFF_MS, error: message });
+    if (!/request limit reached/.test(message)) failures.set(p.id, { until: Date.now() + FAILURE_BACKOFF_MS, error: message });
     return { id: p.id, name: p.name, homepage: p.homepage, status: 'error', count: 0, ms: Date.now() - started, error: message, jobs: [] };
   }
 }
