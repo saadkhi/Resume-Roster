@@ -31,11 +31,6 @@
       fetch('/api/auth/signout', { method: 'POST' })
         .catch(function () { /* cookie may already be gone */ })
         .then(function () {
-          try {
-            Object.keys(localStorage).forEach(function (k) {
-              if (k.indexOf('sb-') === 0) localStorage.removeItem(k);
-            });
-          } catch (e) { /* storage unavailable */ }
           window.location.href = '/';
         });
     });

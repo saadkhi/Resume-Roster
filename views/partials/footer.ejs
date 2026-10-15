@@ -12,8 +12,6 @@
     <script type="application/json" id="rr-config"><%- JSON.stringify({
         currentUser: locals.currentUser || null,
         authEnabled: !!locals.authEnabled,
-        supabaseUrl: locals.supabaseUrl || '',
-        supabaseAnonKey: locals.supabaseAnonKey || '',
         persistenceMode: locals.persistenceMode || 'ephemeral'
     }).replace(/</g, '\\u003c') %></script>
     <script src="<%= asset('/js/shell.js') %>" defer></script>

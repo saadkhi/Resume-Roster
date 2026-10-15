@@ -1,9 +1,10 @@
 /**
  * Application data store.
  *
- * State lives in a JSON file (a per-instance cache) and is mirrored to Supabase
- * Postgres when DATABASE_URL is configured. Only signed-in users' evaluation
- * metadata is stored: never resume text, extracted sections or file contents.
+ * With DATABASE_URL set, everything is stored in Postgres. Without it, a local
+ * JSON file is used (development only; ephemeral on serverless hosts).
+ * Only account details and evaluation metadata are stored: never resume text,
+ * extracted sections or file contents.
  */
 import fs from 'fs';
 import path from 'path';
@@ -11,157 +12,197 @@ import os from 'os';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { INITIAL_JOBS_DATASET } from './jobs-data.js';
-import {
-  initializeSupabase,
-  getSupabaseStatus,
-  syncUserToSupabase,
-  syncResumeToSupabase,
-  syncEvaluationToSupabase,
-  deleteUserDataFromSupabase
-} from './supabase.js';
+import { isConfigured, ready, query, getStatus } from './postgres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
 const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
 const dbPath = process.env.RR_DB_PATH
   || (isServerless
     ? path.join(os.tmpdir(), 'resume_rater_db.json')
     : path.join(__dirname, '..', '..', '.data', 'db.json'));
 
-const newId = (prefix) => `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
+const MAX_EVALUATIONS_PER_USER = 50;
+const newId = (prefix) => `${prefix}_${crypto.randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
-let state = null;
+// ── Local JSON backend ──────────────────────────────────────────────────────
+let local = null;
+const emptyLocal = () => ({ users: [], resumes: [], evaluations: [], contacts: [] });
 
-function freshState() {
-  return { users: [], resumes: [], evaluations: [], contacts: [], jobs: [...INITIAL_JOBS_DATASET] };
-}
-
-function normalise(s) {
-  const base = freshState();
-  for (const key of Object.keys(base)) if (!Array.isArray(s[key])) s[key] = base[key];
-  // The jobs fixture is authoritative; always serve the current version.
-  s.jobs = [...INITIAL_JOBS_DATASET];
-  return s;
-}
-
-function load() {
-  if (state) return state;
+function loadLocal() {
+  if (local) return local;
   try {
     if (fs.existsSync(dbPath)) {
-      state = normalise(JSON.parse(fs.readFileSync(dbPath, 'utf8')));
-      return state;
+      const parsed = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+      local = { ...emptyLocal(), ...parsed };
+      return local;
     }
   } catch (err) {
-    console.warn('Notice: could not read database file, starting empty:', err.message);
+    console.warn('Notice: could not read local database, starting empty:', err.message);
   }
-  state = freshState();
-  return state;
+  local = emptyLocal();
+  return local;
 }
 
-function save() {
+function saveLocal() {
   try {
     fs.mkdirSync(path.dirname(dbPath), { recursive: true });
     const tmp = `${dbPath}.${process.pid}.tmp`;
-    // Jobs are a fixture; do not persist them.
-    const { jobs: _jobs, ...persistable } = state;
-    fs.writeFileSync(tmp, JSON.stringify(persistable), 'utf8');
+    fs.writeFileSync(tmp, JSON.stringify(local), 'utf8');
     fs.renameSync(tmp, dbPath);
   } catch (err) {
-    console.warn('Notice: database write skipped (in-memory state kept):', err.message);
+    console.warn('Notice: local database write skipped:', err.message);
   }
 }
 
-const MAX_RECORDS_PER_USER = 50;
+// ── Public API (all async) ──────────────────────────────────────────────────
+async function usePostgres() {
+  return isConfigured() && (await ready());
+}
 
 export const db = {
+  /** True when a durable Postgres database is configured. */
+  isDurable: isConfigured,
+
+  /** True when accounts can be stored reliably on this host. */
+  accountsAvailable() {
+    return isConfigured() || !isServerless;
+  },
+
   users: {
-    find(id) {
-      return load().users.find(u => u.id === id) || null;
-    },
-    /** Insert or refresh a user keyed by their verified Supabase id. */
-    upsert({ id, email, name, avatar }) {
-      const s = load();
-      let user = s.users.find(u => u.id === id);
-      if (user) {
-        Object.assign(user, { email, name, avatar: avatar || '' });
-      } else {
-        user = { id, email, name, avatar: avatar || '', createdAt: new Date().toISOString() };
-        s.users.push(user);
+    async findByEmail(email) {
+      const e = String(email).toLowerCase();
+      if (await usePostgres()) {
+        const { rows } = await query('SELECT id, email, name, password_hash FROM users WHERE email = $1', [e]);
+        return rows[0] ? { id: rows[0].id, email: rows[0].email, name: rows[0].name, passwordHash: rows[0].password_hash } : null;
       }
-      save();
-      syncUserToSupabase(user).catch(() => {});
+      return loadLocal().users.find(u => u.email === e) || null;
+    },
+
+    /** @returns the new user, or null if the email is already registered. */
+    async create({ email, name, passwordHash }) {
+      const user = { id: newId('usr'), email: String(email).toLowerCase(), name, passwordHash };
+      if (await usePostgres()) {
+        const { rowCount } = await query(
+          'INSERT INTO users (id, email, name, password_hash) VALUES ($1, $2, $3, $4) ON CONFLICT (email) DO NOTHING',
+          [user.id, user.email, user.name, user.passwordHash]
+        );
+        return rowCount ? user : null;
+      }
+      const s = loadLocal();
+      if (s.users.some(u => u.email === user.email)) return null;
+      s.users.push({ ...user, createdAt: new Date().toISOString() });
+      saveLocal();
       return user;
     }
   },
 
-  resumes: {
-    create({ userId, filename, fileSizeBytes, pageCount, detectedCategory, wordCount }) {
-      const s = load();
-      const record = {
-        id: newId('res'),
-        userId,
-        filename: String(filename || 'resume.pdf').slice(0, 255),
-        fileSizeBytes: fileSizeBytes || 0,
-        pageCount: pageCount || 1,
-        wordCount: wordCount || 0,
-        detectedCategory: detectedCategory || null,
-        createdAt: new Date().toISOString()
-      };
-      s.resumes.push(record);
-      save();
-      syncResumeToSupabase(record).catch(() => {});
-      return record;
+  /** Store one evaluation (and its resume metadata) for a signed-in user. */
+  async saveEvaluation(userId, resume, evaluation) {
+    const resumeId = newId('res');
+    const evalId = newId('eval');
+    if (await usePostgres()) {
+      await query(
+        `INSERT INTO resumes (id, user_id, filename, file_size_bytes, page_count, word_count, detected_category)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [resumeId, userId, String(resume.filename).slice(0, 255), resume.fileSizeBytes || 0,
+          resume.pageCount || 1, resume.wordCount || 0, resume.detectedCategory || null]
+      );
+      await query(
+        `INSERT INTO evaluations (id, user_id, resume_id, target_job_title, similarity_score, match_rating, dimensions, keyword_gaps)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [evalId, userId, resumeId, evaluation.targetJobTitle, evaluation.similarityScore, evaluation.matchRating,
+          JSON.stringify(evaluation.dimensions || []), JSON.stringify(evaluation.keywordGaps || [])]
+      );
+      await query(
+        `DELETE FROM evaluations WHERE user_id = $1 AND id NOT IN
+           (SELECT id FROM evaluations WHERE user_id = $1 ORDER BY created_at DESC LIMIT ${MAX_EVALUATIONS_PER_USER})`,
+        [userId]
+      );
+      return evalId;
     }
+    const s = loadLocal();
+    const now = new Date().toISOString();
+    s.resumes.push({ id: resumeId, userId, ...resume, createdAt: now });
+    s.evaluations.push({ id: evalId, userId, resumeId, ...evaluation, createdAt: now });
+    const mine = s.evaluations.filter(e => e.userId === userId);
+    if (mine.length > MAX_EVALUATIONS_PER_USER) {
+      const drop = new Set(mine.slice(0, mine.length - MAX_EVALUATIONS_PER_USER).map(e => e.id));
+      s.evaluations = s.evaluations.filter(e => !drop.has(e.id));
+    }
+    saveLocal();
+    return evalId;
   },
 
-  evaluations: {
-    create(data) {
-      const s = load();
-      const record = { id: newId('eval'), ...data, createdAt: new Date().toISOString() };
-      s.evaluations.push(record);
-      // Cap per-user history so the store cannot grow without bound.
-      const mine = s.evaluations.filter(e => e.userId === data.userId);
-      if (mine.length > MAX_RECORDS_PER_USER) {
-        const drop = new Set(mine.slice(0, mine.length - MAX_RECORDS_PER_USER).map(e => e.id));
-        s.evaluations = s.evaluations.filter(e => !drop.has(e.id));
-      }
-      save();
-      syncEvaluationToSupabase(record).catch(() => {});
-      return record;
-    },
-    listByUser(userId, limit = 20) {
-      return load().evaluations
-        .filter(e => e.userId === userId)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-        .slice(0, limit);
+  async history(userId, limit = 20) {
+    if (await usePostgres()) {
+      const { rows } = await query(
+        `SELECT id, target_job_title, similarity_score, match_rating, created_at
+           FROM evaluations WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+        [userId, limit]
+      );
+      return rows.map(r => ({
+        id: r.id,
+        target: r.target_job_title,
+        score: Number(r.similarity_score),
+        rating: r.match_rating,
+        createdAt: new Date(r.created_at).toISOString()
+      }));
     }
+    return loadLocal().evaluations
+      .filter(e => e.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .slice(0, limit)
+      .map(e => ({ id: e.id, target: e.targetJobTitle, score: e.similarityScore, rating: e.matchRating, createdAt: e.createdAt }));
   },
 
-  /** Remove everything stored about a user (history and profile). */
-  deleteUserData(userId) {
-    const s = load();
-    const removed = {
-      evaluations: s.evaluations.filter(e => e.userId === userId).length,
-      resumes: s.resumes.filter(r => r.userId === userId).length
-    };
+  /** Remove the account and everything stored about it. */
+  async deleteUserData(userId) {
+    if (await usePostgres()) {
+      const { rows } = await query('SELECT COUNT(*)::int AS n FROM evaluations WHERE user_id = $1', [userId]);
+      await query('DELETE FROM users WHERE id = $1', [userId]); // cascades
+      return { evaluations: rows[0].n };
+    }
+    const s = loadLocal();
+    const removed = { evaluations: s.evaluations.filter(e => e.userId === userId).length };
     s.evaluations = s.evaluations.filter(e => e.userId !== userId);
     s.resumes = s.resumes.filter(r => r.userId !== userId);
     s.users = s.users.filter(u => u.id !== userId);
-    save();
-    deleteUserDataFromSupabase(userId).catch(() => {});
+    saveLocal();
     return removed;
   },
 
+  contacts: {
+    async create({ name, email, subject, message }) {
+      const record = {
+        id: newId('cnt'),
+        name: String(name || '').trim().slice(0, 100),
+        email: String(email || '').trim().slice(0, 254),
+        subject: String(subject || 'general').slice(0, 50),
+        message: String(message || '').trim().slice(0, 5000)
+      };
+      if (await usePostgres()) {
+        await query('INSERT INTO contacts (id, name, email, subject, message) VALUES ($1, $2, $3, $4, $5)',
+          [record.id, record.name, record.email, record.subject, record.message]);
+      } else {
+        const s = loadLocal();
+        s.contacts.unshift({ ...record, createdAt: new Date().toISOString() });
+        s.contacts = s.contacts.slice(0, 500);
+        saveLocal();
+      }
+      return record;
+    }
+  },
+
   jobs: {
-    list({ query = '', category = '', remoteOnly = false } = {}) {
-      let jobs = [...load().jobs];
-      const q = String(query || '').toLowerCase().trim();
-      if (q) {
+    list({ query: q = '', category = '', remoteOnly = false } = {}) {
+      let jobs = [...INITIAL_JOBS_DATASET];
+      const needle = String(q || '').toLowerCase().trim();
+      if (needle) {
         jobs = jobs.filter(j =>
-          j.title.toLowerCase().includes(q) ||
-          j.company.toLowerCase().includes(q) ||
-          j.description.toLowerCase().includes(q) ||
-          (j.skills || []).some(s => s.toLowerCase().includes(q)));
+          j.title.toLowerCase().includes(needle) ||
+          j.company.toLowerCase().includes(needle) ||
+          j.description.toLowerCase().includes(needle) ||
+          (j.skills || []).some(s => s.toLowerCase().includes(needle)));
       }
       const cat = String(category || '').toLowerCase().trim();
       if (cat && cat !== 'all') jobs = jobs.filter(j => (j.category || '').toLowerCase().includes(cat));
@@ -170,41 +211,13 @@ export const db = {
     }
   },
 
-  contacts: {
-    create({ name, email, subject, message }) {
-      const s = load();
-      const record = {
-        id: newId('cnt'),
-        name: String(name || '').trim().slice(0, 100),
-        email: String(email || '').trim().slice(0, 254),
-        subject: String(subject || 'general').slice(0, 50),
-        message: String(message || '').trim().slice(0, 5000),
-        createdAt: new Date().toISOString()
-      };
-      s.contacts.unshift(record);
-      s.contacts = s.contacts.slice(0, 500);
-      save();
-      return record;
-    }
+  async health() {
+    if (isConfigured()) await ready();
+    return getStatus();
   },
 
-  supabase: {
-    getStatus: getSupabaseStatus,
-    initialize: initializeSupabase
-  },
-
-  /** True when evaluations are mirrored to a durable database. */
-  isDurable() {
-    return !!getSupabaseStatus().hasConnectionString;
-  },
-
-  /** Test helper: drop in-memory state. */
+  /** Test helper: drop in-memory local state. */
   _reset() {
-    state = freshState();
+    local = emptyLocal();
   }
 };
-
-// Connect to Supabase Postgres in the background (no-op when unconfigured).
-initializeSupabase().catch(err => {
-  console.warn('Notice: background Supabase init:', err.message);
-});

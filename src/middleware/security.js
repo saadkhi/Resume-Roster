@@ -20,7 +20,7 @@ function limiter(max, message) {
 
 export const apiLimiter = limiter(120, 'Too many requests. Please slow down.');
 export const uploadLimiter = limiter(20, 'Too many uploads. Please wait a moment and try again.');
-export const authLimiter = limiter(20, 'Too many sign-in attempts. Please wait a moment.');
+export const authLimiter = limiter(10, 'Too many sign-in attempts. Please wait a minute and try again.');
 
 /** True when the buffer starts with the PDF magic number. */
 export function isPdfBuffer(buf) {
@@ -33,7 +33,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
-  "connect-src 'self' https://*.supabase.co",
+  "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",

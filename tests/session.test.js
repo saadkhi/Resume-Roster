@@ -44,10 +44,9 @@ describe('cookies', () => {
   });
 
   it('accepts a valid signed cookie', () => {
-    const token = signSession({ uid: 'u9', email: 'x@y.zz', name: 'X', admin: true });
+    const token = signSession({ uid: 'u9', email: 'x@y.zz', name: 'X' });
     const req = { headers: { cookie: `${SESSION_COOKIE}=${encodeURIComponent(token)}` } };
     sessionMiddleware(req, {}, () => {});
     assert.equal(req.user.id, 'u9');
-    assert.equal(req.user.isAdmin, true);
   });
 });

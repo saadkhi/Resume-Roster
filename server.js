@@ -9,7 +9,7 @@ import { db } from './src/db/index.js';
 import { jobsService } from './src/services/jobs.js';
 import { scoreMatch, atsChecks } from './src/services/nlp.js';
 import { analyzeResume, UnreadablePdfError } from './src/services/resumeParser.js';
-import { authConfigured, verifyAccessToken, bearerToken } from './src/services/auth.js';
+import { hashPassword, verifyPassword, dummyVerify } from './src/services/passwords.js';
 import {
   sessionMiddleware, sessionsEnabled, setSessionCookie, clearSessionCookie
 } from './src/middleware/session.js';
@@ -17,7 +17,7 @@ import {
   apiLimiter, uploadLimiter, authLimiter, getSafeErrorMessage, isPdfBuffer,
   securityHeaders, sameOriginGuard
 } from './src/middleware/security.js';
-import { requireAdminAuth, isAdminEmail } from './src/middleware/admin.js';
+import { requireAdminAuth } from './src/middleware/admin.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isProduction = process.env.NODE_ENV === 'production';
@@ -82,10 +82,8 @@ const fail = (res, status, error) => res.status(status).json({ success: false, e
 
 function pageData(req, extra = {}) {
   return {
-    currentUser: req.user ? { name: req.user.name, email: req.user.email, avatar: req.user.avatar } : null,
-    authEnabled: authConfigured() && sessionsEnabled(),
-    supabaseUrl: process.env.SUPABASE_URL || '',
-    supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
+    currentUser: req.user ? { name: req.user.name, email: req.user.email } : null,
+    authEnabled: sessionsEnabled() && db.accountsAvailable(),
     persistenceMode: db.isDurable() ? 'durable' : 'ephemeral',
     contactEmail: process.env.CONTACT_EMAIL || '',
     ...extra
@@ -108,27 +106,32 @@ function jobTextFrom(body = {}) {
   return (text || keywords).slice(0, MAX_JOB_TEXT_CHARS);
 }
 
-function persistEvaluation(req, analysis, size) {
+async function persistEvaluation(req, analysis, size) {
   if (!req.user || !analysis.match) return false;
-  db.users.upsert(req.user); // idempotent; also recreates state on a cold serverless instance
-  const resume = db.resumes.create({
-    userId: req.user.id,
-    filename: analysis.filename,
-    fileSizeBytes: size,
-    pageCount: analysis.pages,
-    wordCount: analysis.stats.wordCount,
-    detectedCategory: analysis.category
-  });
-  db.evaluations.create({
-    userId: req.user.id,
-    resumeId: resume.id,
-    targetJobTitle: analysis.match.targetJob,
-    similarityScore: analysis.match.similarityScore,
-    matchRating: analysis.match.matchRating,
-    dimensions: analysis.match.dimensions,
-    keywordGaps: analysis.match.missingKeywords
-  });
-  return true;
+  try {
+    await db.saveEvaluation(
+      req.user.id,
+      {
+        filename: analysis.filename,
+        fileSizeBytes: size,
+        pageCount: analysis.pages,
+        wordCount: analysis.stats.wordCount,
+        detectedCategory: analysis.category
+      },
+      {
+        targetJobTitle: analysis.match.targetJob,
+        similarityScore: analysis.match.similarityScore,
+        matchRating: analysis.match.matchRating,
+        dimensions: analysis.match.dimensions,
+        keywordGaps: analysis.match.missingKeywords
+      }
+    );
+    return true;
+  } catch (err) {
+    // Saving history must never break the analysis the user asked for.
+    console.error('Could not save evaluation:', err.message);
+    return false;
+  }
 }
 
 function sendAnalysisError(res, err, fallback) {
@@ -140,13 +143,12 @@ function sendAnalysisError(res, err, fallback) {
 // ── Pages ───────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => render('index', req, res));
 app.get('/auth', (req, res) => render('auth', req, res));
-app.get('/auth/callback', (req, res) => render('auth-callback', req, res));
 app.get('/terms', (req, res) => render('terms', req, res));
 app.get('/privacy', (req, res) => render('privacy', req, res));
 app.get('/contact', (req, res) => render('contact', req, res, { form: { name: '', email: '', subject: 'general', message: '' }, status: null }));
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-app.post('/contact', apiLimiter, (req, res) => {
+app.post('/contact', apiLimiter, async (req, res) => {
   const body = req.body || {};
   const form = {
     name: String(body.name || '').trim().slice(0, 100),
@@ -162,7 +164,15 @@ app.post('/contact', apiLimiter, (req, res) => {
       status: { ok: false, text: 'Please enter a valid email address and a message of at least 10 characters.' }
     }));
   }
-  db.contacts.create(form);
+  try {
+    await db.contacts.create(form);
+  } catch (err) {
+    console.error('Contact save failed:', err.message);
+    return res.status(500).render('contact', pageData(req, {
+      form,
+      status: { ok: false, text: 'Sorry, we could not send your message right now. Please try again later.' }
+    }));
+  }
   return render('contact', req, res, {
     form: { name: '', email: '', subject: 'general', message: '' },
     status: { ok: true, text: 'Thanks. Your message was sent and we will reply by email.' }
@@ -188,7 +198,7 @@ app.post('/api/parse-resume', uploadLimiter, (req, res, next) => {
       filename: path.basename(file.originalname || 'resume.pdf').slice(0, 255),
       jobText: jobTextFrom(req.body)
     });
-    const persisted = persistEvaluation(req, analysis, file.size);
+    const persisted = await persistEvaluation(req, analysis, file.size);
     return ok(res, { ...analysis, persisted });
   } catch (err) {
     return sendAnalysisError(res, err, 'Failed to analyse the resume.');
@@ -252,27 +262,58 @@ app.get('/api/jobs', apiLimiter, handleJobs);
 app.post('/api/jobs', apiLimiter, handleJobs);
 
 // ── Auth API ────────────────────────────────────────────────────────────────
-// The client sends its Supabase access token; the server verifies it with
-// Supabase and issues its own signed, httpOnly session cookie. No identity is
-// ever taken from the request body.
-app.post('/api/auth/session', authLimiter, async (req, res) => {
-  if (!authConfigured()) return fail(res, 503, 'Sign-in is not configured on this server.');
-  if (!sessionsEnabled()) return fail(res, 503, 'Sign-in is temporarily unavailable (server configuration).');
+// Accounts are email + password (scrypt hashes in Postgres). On success the
+// server issues its own signed, httpOnly session cookie.
+const MAX_PASSWORD = 128;
 
-  const verified = await verifyAccessToken(bearerToken(req));
-  if (!verified) return fail(res, 401, 'Your sign-in could not be verified. Please try again.');
+function authReady(res) {
+  if (sessionsEnabled() && db.accountsAvailable()) return true;
+  fail(res, 503, 'Accounts are not available on this server yet.');
+  return false;
+}
 
-  const user = { id: verified.id, email: verified.email, name: verified.name, avatar: verified.avatar };
-  db.users.upsert(user);
-  setSessionCookie(req, res, { ...user, isAdmin: isAdminEmail(user.email, verified.emailConfirmed) });
-  return ok(res, { user: { name: user.name, email: user.email, avatar: user.avatar } });
+app.post('/api/auth/register', authLimiter, async (req, res) => {
+  if (!authReady(res)) return;
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const name = String(req.body?.name || '').trim().slice(0, 100) || email.split('@')[0];
+
+  if (!EMAIL_RE.test(email) || email.length > 254) return fail(res, 400, 'Enter a valid email address.');
+  if (password.length < 8) return fail(res, 400, 'Use a password of at least 8 characters.');
+  if (password.length > MAX_PASSWORD) return fail(res, 400, 'That password is too long.');
+
+  try {
+    const user = await db.users.create({ email, name, passwordHash: await hashPassword(password) });
+    if (!user) return fail(res, 409, 'An account with that email already exists. Try signing in.');
+    setSessionCookie(req, res, user);
+    return ok(res, { user: { name: user.name, email: user.email } });
+  } catch (err) {
+    console.error('Register failed:', err.message);
+    return fail(res, 500, 'We could not create your account. Please try again.');
+  }
+});
+
+app.post('/api/auth/login', authLimiter, async (req, res) => {
+  if (!authReady(res)) return;
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '').slice(0, MAX_PASSWORD + 1);
+  try {
+    const user = email ? await db.users.findByEmail(email) : null;
+    const valid = user ? await verifyPassword(password, user.passwordHash) : (await dummyVerify(password), false);
+    if (!valid) return fail(res, 401, 'Incorrect email or password.');
+    setSessionCookie(req, res, user);
+    return ok(res, { user: { name: user.name, email: user.email } });
+  } catch (err) {
+    console.error('Login failed:', err.message);
+    return fail(res, 500, 'We could not sign you in. Please try again.');
+  }
 });
 
 app.get('/api/auth/me', apiLimiter, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   return ok(res, {
     authenticated: !!req.user,
-    user: req.user ? { name: req.user.name, email: req.user.email, avatar: req.user.avatar } : null
+    user: req.user ? { name: req.user.name, email: req.user.email } : null
   });
 });
 
@@ -287,43 +328,38 @@ function requireUser(req, res, next) {
   return next();
 }
 
-app.get('/api/history', apiLimiter, requireUser, (req, res) => {
+app.get('/api/history', apiLimiter, requireUser, async (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  const items = db.evaluations.listByUser(req.user.id, 20).map(e => ({
-    id: e.id,
-    target: e.targetJobTitle,
-    score: e.similarityScore,
-    rating: e.matchRating,
-    createdAt: e.createdAt
-  }));
-  return ok(res, { items, durable: db.isDurable() });
+  try {
+    return ok(res, { items: await db.history(req.user.id, 20), durable: db.isDurable() });
+  } catch (err) {
+    console.error('History failed:', err.message);
+    return fail(res, 500, 'Could not load your history.');
+  }
 });
 
-app.delete('/api/history', apiLimiter, requireUser, (req, res) => {
-  const removed = db.deleteUserData(req.user.id);
-  clearSessionCookie(req, res);
-  return ok(res, { removed });
+app.delete('/api/history', apiLimiter, requireUser, async (req, res) => {
+  try {
+    const removed = await db.deleteUserData(req.user.id);
+    clearSessionCookie(req, res);
+    return ok(res, { removed });
+  } catch (err) {
+    console.error('Delete failed:', err.message);
+    return fail(res, 500, 'Could not delete your data. Please try again.');
+  }
 });
 
 // ── Operations ──────────────────────────────────────────────────────────────
-app.get('/api/health', apiLimiter, (req, res) => ok(res, {
-  status: 'ok',
-  auth: authConfigured() && sessionsEnabled(),
-  persistence: db.isDurable() ? 'durable' : 'ephemeral'
-}));
-
-app.get('/api/admin/status', requireAdminAuth, (req, res) => ok(res, {
-  isAdmin: true,
-  database: db.supabase.getStatus()
-}));
-
-app.post('/api/admin/db-test', requireAdminAuth, apiLimiter, async (req, res) => {
-  try {
-    return ok(res, { database: await db.supabase.initialize() });
-  } catch (err) {
-    return fail(res, 500, getSafeErrorMessage(err));
-  }
+app.get('/api/health', apiLimiter, async (req, res) => {
+  const database = await db.health();
+  return ok(res, {
+    status: 'ok',
+    accounts: sessionsEnabled() && db.accountsAvailable(),
+    database: { configured: database.configured, connected: database.connected }
+  });
 });
+
+app.get('/api/admin/status', requireAdminAuth, async (req, res) => ok(res, { database: await db.health() }));
 
 // ── Errors ──────────────────────────────────────────────────────────────────
 app.use('/api', (req, res) => fail(res, 404, `API route not found: ${req.method} ${req.path}`));

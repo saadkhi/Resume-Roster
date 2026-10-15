@@ -6,11 +6,10 @@
     "dev": "node server.js",
     "start": "node server.js",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/nlp.test.js tests/session.test.js tests/http.test.js",
+    "test": "node --test tests/nlp.test.js tests/session.test.js tests/passwords.test.js tests/http.test.js",
     "lint": "eslint ."
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.117.3",
     "ejs": "^7.0.1",
     "esbuild": "^0.28.2",
     "express": "^5.2.1",

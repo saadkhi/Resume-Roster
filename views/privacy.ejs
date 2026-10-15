@@ -17,17 +17,17 @@
 
         <h2>What we store if you sign in</h2>
         <ul>
-            <li><strong>Account:</strong> the name, email address and avatar provided by your sign-in method (Google, GitHub, Microsoft or email).</li>
+            <li><strong>Account:</strong> your name, email address and a salted, one-way hash of your password (never the password itself).</li>
             <li><strong>Evaluation history:</strong> file name, detected field, page and word counts, match score, rating and the list of missing keywords. No resume text and no extracted sections.</li>
         </ul>
-        <p>Signing in is optional. Anonymous use stores nothing about you.</p>
+        <p>Signing in is optional. Anonymous use stores nothing about you, other than messages you choose to send through the contact form.</p>
 
         <h2>Cookies</h2>
         <p>When you sign in we set one strictly necessary, httpOnly session cookie. We do not use advertising or analytics cookies.</p>
 
         <h2>Service providers</h2>
         <ul>
-            <li><strong>Supabase</strong> provides authentication and, where enabled, the database that holds your evaluation history.</li>
+            <li><strong>Neon</strong> hosts the Postgres database that holds accounts and evaluation history.</li>
             <li><strong>Google Fonts</strong> serves the typeface, which means your browser requests it from Google.</li>
             <li>Our hosting provider processes requests on our behalf.</li>
         </ul>

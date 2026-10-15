@@ -5,37 +5,33 @@ import os from 'os';
 import path from 'path';
 
 process.env.SESSION_SECRET = 'test-secret-test-secret-test-secret';
-process.env.ADMIN_EMAIL = 'admin@example.com';
 process.env.ADMIN_OVERRIDE_KEY = 'override-key-for-tests';
 process.env.RR_DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rr-test-')), 'db.json');
-process.env.SUPABASE_URL = 'https://test.supabase.co';
-process.env.SUPABASE_ANON_KEY = 'anon';
+delete process.env.DATABASE_URL;
 
 const { app } = await import('../server.js');
-const { setTokenVerifier } = await import('../src/services/auth.js');
 
 let server;
 let base;
-const users = {
-  'token-alice': { id: 'uid-alice', email: 'alice@example.com', name: 'Alice', avatar: '', emailConfirmed: true },
-  'token-admin': { id: 'uid-admin', email: 'admin@example.com', name: 'Admin', avatar: '', emailConfirmed: true }
-};
 
 before(async () => {
-  setTokenVerifier(async (t) => users[t] || null);
   await new Promise(resolve => { server = app.listen(0, '127.0.0.1', resolve); });
   base = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => { server.close(); setTokenVerifier(null); });
+after(() => { server.close(); });
 
 const samplePdf = () => fs.readFileSync(new URL('../uploads/sample-data-scientist.pdf', import.meta.url));
 const readDb = () => (fs.existsSync(process.env.RR_DB_PATH) ? fs.readFileSync(process.env.RR_DB_PATH, 'utf8') : '');
 
-async function signIn(token) {
-  const res = await fetch(`${base}/api/auth/session`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
-  const cookie = (res.headers.get('set-cookie') || '').split(';')[0];
-  return { res, cookie };
+const json = (url, body, headers = {}) => fetch(`${base}${url}`, {
+  method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body)
+});
+const cookieOf = (res) => (res.headers.get('set-cookie') || '').split(';')[0];
+
+async function register(email, password = 'correct horse battery') {
+  const res = await json('/api/auth/register', { email, password, name: 'Test User' });
+  return { res, cookie: cookieOf(res) };
 }
 
 describe('pages and headers', () => {
@@ -68,7 +64,7 @@ describe('pages and headers', () => {
   });
 });
 
-describe('identity cannot be spoofed', () => {
+describe('accounts', () => {
   it('ignores user_email / x-user-id style signals', async () => {
     const res = await fetch(`${base}/api/auth/me`, {
       headers: { Cookie: 'user_email=admin@example.com; user_id=usr_admin_saad', 'x-user-id': 'usr_admin_saad' }
@@ -76,28 +72,35 @@ describe('identity cannot be spoofed', () => {
     assert.equal((await res.json()).authenticated, false);
   });
 
-  it('rejects an unverified token and does not set a cookie', async () => {
-    const { res, cookie } = await signIn('forged');
-    assert.equal(res.status, 401);
-    assert.equal(cookie, '');
-  });
-
-  it('ignores identity fields in the request body', async () => {
-    const res = await fetch(`${base}/api/auth/session`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@example.com', id: 'uid-admin' })
-    });
-    assert.equal(res.status, 401);
-  });
-
-  it('issues an httpOnly session for a verified token', async () => {
-    const { res, cookie } = await signIn('token-alice');
+  it('registers, sets an httpOnly session, and exposes the user', async () => {
+    const { res, cookie } = await register('alice@example.com');
     assert.equal(res.status, 200);
     assert.match(res.headers.get('set-cookie'), /HttpOnly/i);
     assert.match(res.headers.get('set-cookie'), /SameSite=Lax/i);
     const me = await (await fetch(`${base}/api/auth/me`, { headers: { Cookie: cookie } })).json();
     assert.equal(me.user.email, 'alice@example.com');
+  });
+
+  it('rejects duplicate emails, bad emails and weak passwords', async () => {
+    assert.equal((await register('Alice@Example.com')).res.status, 409);
+    assert.equal((await json('/api/auth/register', { email: 'nope', password: 'longenough1' })).status, 400);
+    assert.equal((await json('/api/auth/register', { email: 'bob@example.com', password: 'short' })).status, 400);
+  });
+
+  it('logs in with the right password and gives a generic error otherwise', async () => {
+    const ok = await json('/api/auth/login', { email: 'ALICE@example.com', password: 'correct horse battery' });
+    assert.equal(ok.status, 200);
+    const wrong = await json('/api/auth/login', { email: 'alice@example.com', password: 'wrong password' });
+    const unknown = await json('/api/auth/login', { email: 'ghost@example.com', password: 'wrong password' });
+    assert.equal(wrong.status, 401);
+    assert.equal(unknown.status, 401);
+    assert.equal((await wrong.json()).error, (await unknown.json()).error);
+  });
+
+  it('never stores the plaintext password', () => {
+    const stored = readDb();
+    assert.doesNotMatch(stored, /correct horse battery/);
+    assert.ok(stored.includes('scrypt$16384'));
   });
 });
 
@@ -108,7 +111,7 @@ describe('history and privacy', () => {
   });
 
   it('saves metadata only, and can be deleted', async () => {
-    const { cookie } = await signIn('token-alice');
+    const { cookie } = await register('carol@example.com');
     const fd = new FormData();
     fd.append('resume', new Blob([samplePdf()], { type: 'application/pdf' }), 'cv.pdf');
     fd.append('job_keywords', 'Data Scientist, Python, SQL, Machine Learning');
@@ -118,7 +121,7 @@ describe('history and privacy', () => {
     assert.ok(up.match.percentage >= 80);
 
     const stored = readDb();
-    assert.match(stored, /alice@example\.com/);
+    assert.match(stored, /carol@example\.com/);
     assert.doesNotMatch(stored, /Brightloop|Priya|rawText|sections/i, 'resume content must never be persisted');
 
     const hist = await (await fetch(`${base}/api/history`, { headers: { Cookie: cookie } })).json();
@@ -127,7 +130,7 @@ describe('history and privacy', () => {
 
     const del = await (await fetch(`${base}/api/history`, { method: 'DELETE', headers: { Cookie: cookie } })).json();
     assert.equal(del.removed.evaluations, 1);
-    assert.doesNotMatch(readDb(), /alice@example\.com/);
+    assert.doesNotMatch(readDb(), /carol@example\.com/);
   });
 
   it('does not persist anything for anonymous users', async () => {
@@ -171,26 +174,20 @@ describe('upload validation', () => {
 
 describe('csrf and admin', () => {
   it('blocks cross-origin state-changing requests', async () => {
-    const res = await fetch(`${base}/api/evaluate-match`, {
-      method: 'POST',
-      headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resumeText: 'a', jobDescriptionText: 'b' })
-    });
+    const res = await json('/api/evaluate-match', { resumeText: 'a', jobDescriptionText: 'b' }, { Origin: 'https://evil.example' });
     assert.equal(res.status, 403);
   });
 
-  it('admin routes reject anonymous, non-admin and cookie-only callers', async () => {
+  it('admin routes reject anonymous, user-session and wrong-key callers', async () => {
     assert.equal((await fetch(`${base}/api/admin/status`)).status, 401);
-    assert.equal((await fetch(`${base}/api/admin/status`, { headers: { Authorization: 'Bearer token-alice' } })).status, 403);
     assert.equal((await fetch(`${base}/api/admin/status`, { headers: { Cookie: 'user_email=admin@example.com' } })).status, 401);
-    const { cookie } = await signIn('token-admin');
+    const { cookie } = await register('dave@example.com');
     assert.equal((await fetch(`${base}/api/admin/status`, { headers: { Cookie: cookie } })).status, 401);
+    assert.equal((await fetch(`${base}/api/admin/status`, { headers: { 'X-Admin-Key': 'wrong' } })).status, 401);
   });
 
-  it('admin routes accept a verified admin token or the override key', async () => {
-    assert.equal((await fetch(`${base}/api/admin/status`, { headers: { Authorization: 'Bearer token-admin' } })).status, 200);
+  it('admin routes accept the override key', async () => {
     assert.equal((await fetch(`${base}/api/admin/status`, { headers: { 'X-Admin-Key': 'override-key-for-tests' } })).status, 200);
-    assert.equal((await fetch(`${base}/api/admin/status`, { headers: { 'X-Admin-Key': 'wrong' } })).status, 401);
   });
 });
 

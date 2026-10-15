@@ -2,8 +2,8 @@
  * Signed, httpOnly session cookies.
  *
  * Identity only ever comes from this cookie, which is minted after the server
- * has verified a Supabase access token (see POST /api/auth/session). Nothing
- * client-controlled (headers, plain cookies, body fields) is trusted as identity.
+ * has verified a password (see POST /api/auth/login). Nothing client-controlled
+ * (headers, plain cookies, body fields) is trusted as identity.
  */
 import crypto from 'crypto';
 
@@ -67,9 +67,7 @@ export function parseCookies(header) {
 export function sessionMiddleware(req, res, next) {
   req.cookies = parseCookies(req.headers.cookie);
   const payload = verifySession(req.cookies[SESSION_COOKIE]);
-  req.user = payload
-    ? { id: payload.uid, email: payload.email, name: payload.name, avatar: payload.avatar || '', isAdmin: !!payload.admin }
-    : null;
+  req.user = payload ? { id: payload.uid, email: payload.email, name: payload.name } : null;
   next();
 }
 
@@ -83,13 +81,7 @@ function cookieOptions(req) {
 }
 
 export function setSessionCookie(req, res, user) {
-  const token = signSession({
-    uid: user.id,
-    email: user.email,
-    name: user.name,
-    avatar: user.avatar || '',
-    admin: !!user.isAdmin
-  });
+  const token = signSession({ uid: user.id, email: user.email, name: user.name });
   res.cookie(SESSION_COOKIE, token, { ...cookieOptions(req), maxAge: SESSION_TTL_SECONDS * 1000 });
 }
 
