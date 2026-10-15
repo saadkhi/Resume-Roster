@@ -59,10 +59,12 @@ const toIso = (v) => {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
-function salaryText(min, max, currency = '') {
+const CURRENCY_BY_COUNTRY = { us: '$', gb: '£', au: 'A$', ca: 'C$', nz: 'NZ$', in: '₹', sg: 'S$', za: 'R', pl: 'zł ', br: 'R$', mx: 'MX$' };
+
+function salaryText(min, max, currency = '$') {
   const n = (x) => (Number(x) >= 1000 ? `${Math.round(Number(x) / 1000)}k` : String(Math.round(Number(x))));
-  const c = currency ? `${currency} ` : '$';
-  if (min > 0 && max > 0) return `${c}${n(min)} – ${n(max)}`;
+  const c = currency;
+  if (min > 0 && max > 0 && n(min) !== n(max)) return `${c}${n(min)} – ${n(max)}`;
   if (max > 0 || min > 0) return `${c}${n(max || min)}`;
   return null;
 }
@@ -233,7 +235,7 @@ export const PROVIDERS = [
       return (data.results || []).map(j => normalize('adzuna', 'Adzuna', {
         id: j.id, title: j.title, company: j.company?.display_name, location: j.location?.display_name,
         remote: null, description: j.description, url: j.redirect_url, postedAt: j.created,
-        salary: salaryText(j.salary_min, j.salary_max), tags: [j.category?.label, j.contract_time].filter(Boolean)
+        salary: salaryText(j.salary_min, j.salary_max, CURRENCY_BY_COUNTRY[country] ?? ''), tags: [j.category?.label, j.contract_time].filter(Boolean)
       }));
     }
   },
@@ -247,7 +249,7 @@ export const PROVIDERS = [
       return (data.results || []).map(j => normalize('reed', 'Reed', {
         id: j.jobId, title: j.jobTitle, company: j.employerName, location: j.locationName, remote: null,
         description: j.jobDescription, url: j.jobUrl, postedAt: j.date,
-        salary: salaryText(j.minimumSalary, j.maximumSalary, j.currency === 'GBP' ? '£' : '')
+        salary: salaryText(j.minimumSalary, j.maximumSalary, !j.currency || j.currency === 'GBP' ? '£' : `${j.currency} `)
       }));
     }
   },
