@@ -68,7 +68,7 @@ With no environment variables the analyzer works fully. Accounts need `SESSION_S
 | `CONTACT_EMAIL` | Shown on the legal pages (optional). |
 | `ADZUNA_*`, `REED_API_KEY`, `JOOBLE_API_KEY`, `FINDWORK_API_KEY` | Optional: enable extra job sources. |
 
-The schema in `scripts/schema.sql` is applied automatically (idempotently) on first connect.
+The schema in `src/db/schema.js` is applied automatically (idempotently) on first connect.
 
 ## Scripts
 

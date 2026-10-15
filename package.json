@@ -6,7 +6,7 @@
     "dev": "node server.js",
     "start": "node server.js",
     "build": "node scripts/build.mjs",
-    "test": "node --test tests/nlp.test.js tests/session.test.js tests/passwords.test.js tests/livejobs.test.js tests/adzuna-countries.test.js tests/http.test.js",
+    "test": "node --test tests/nlp.test.js tests/session.test.js tests/passwords.test.js tests/livejobs.test.js tests/adzuna-countries.test.js tests/database.test.js tests/http.test.js",
     "lint": "eslint ."
   },
   "dependencies": {

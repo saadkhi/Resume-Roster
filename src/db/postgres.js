@@ -3,12 +3,9 @@
  * DATABASE_URL. The schema is applied idempotently on first connect.
  */
 import pg from 'pg';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { SCHEMA_SQL } from './schema.js';
 
 const { Pool } = pg;
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RETRY_AFTER_MS = 30_000;
 
 let pool = null;
@@ -16,12 +13,24 @@ let readyPromise = null;
 let failedAt = 0;
 const state = { connected: false, error: null, lastChecked: null };
 
+/**
+ * Tolerates the ways a connection string is commonly pasted: surrounding
+ * quotes, a leading `psql` command, and stray whitespace.
+ */
+export function cleanDatabaseUrl(raw) {
+  if (typeof raw !== 'string') return '';
+  let v = raw.trim().replace(/^psql\s+/i, '').trim();
+  v = v.replace(/^["']+|["']+$/g, '').trim();
+  const m = /postgres(?:ql)?:\/\/\S+/i.exec(v);
+  return m ? m[0] : v;
+}
+
 export function isConfigured() {
-  return !!process.env.DATABASE_URL;
+  return !!cleanDatabaseUrl(process.env.DATABASE_URL);
 }
 
 function createPool() {
-  const url = process.env.DATABASE_URL;
+  const url = cleanDatabaseUrl(process.env.DATABASE_URL);
   const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
   return new Pool({
     connectionString: url,
@@ -39,15 +48,17 @@ async function init() {
   try {
     pool = pool || createPool();
     pool.on('error', (err) => console.warn('Notice: Postgres idle client error:', err.message));
-    const schemaPath = path.join(__dirname, '..', '..', 'scripts', 'schema.sql');
-    await pool.query(fs.readFileSync(schemaPath, 'utf8'));
+    await pool.query(SCHEMA_SQL);
     state.connected = true;
     state.error = null;
     return true;
   } catch (err) {
     state.connected = false;
-    state.error = err.message;
+    state.error = String(err.message || err).slice(0, 160);
     failedAt = Date.now();
+    // Drop the failed pool so the next attempt starts clean.
+    try { await pool?.end(); } catch { /* already closed */ }
+    pool = null;
     console.warn('Notice: Postgres unavailable:', err.message);
     return false;
   }

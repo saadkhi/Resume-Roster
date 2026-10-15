@@ -1,3 +1,6 @@
+// Idempotent schema, applied on first database connection.
+// Embedded as a string so it is always bundled with the serverless function.
+export const SCHEMA_SQL = `
 -- Resume Rater: Postgres schema (idempotent; applied automatically on first connect).
 --
 -- Only account details and evaluation METADATA are stored. Resume text and
@@ -44,3 +47,4 @@ CREATE TABLE IF NOT EXISTS contacts (
     message TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+`;

@@ -362,7 +362,11 @@ app.get('/api/health', apiLimiter, async (req, res) => {
   return ok(res, {
     status: 'ok',
     accounts: sessionsEnabled() && db.accountsAvailable(),
-    database: { configured: database.configured, connected: database.connected }
+    database: {
+      configured: database.configured,
+      connected: database.connected,
+      ...(database.configured && !database.connected ? { error: database.error } : {})
+    }
   });
 });
 

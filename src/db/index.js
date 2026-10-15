@@ -54,8 +54,15 @@ function saveLocal() {
 }
 
 // ── Public API (all async) ──────────────────────────────────────────────────
+/**
+ * True when Postgres should be used. If a database is configured but cannot be
+ * reached this throws, so data is never silently written to a throwaway local
+ * file on a serverless host.
+ */
 async function usePostgres() {
-  return isConfigured() && (await ready());
+  if (!isConfigured()) return false;
+  if (await ready()) return true;
+  throw new Error('Database is unavailable.');
 }
 
 export const db = {

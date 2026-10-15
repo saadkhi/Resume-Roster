@@ -13,7 +13,7 @@ const browserGlobals = {
 
 export default [
   {
-    ignores: ['node_modules/**', 'public/vendor/**', 'public/match-visualizer.bundle.js', '.data/**', 'uploads/**']
+    ignores: ['node_modules/**', '.vercel/**', 'public/vendor/**', 'public/match-visualizer.bundle.js', '.data/**', 'uploads/**']
   },
   js.configs.recommended,
   {
