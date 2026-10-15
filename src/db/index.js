@@ -15,7 +15,8 @@ import { isConfigured, ready, query, getStatus } from './postgres.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isServerless = !!(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.NOW_REGION);
-const dbPath = process.env.RR_DB_PATH
+// Resolved lazily so tests (and hosts) can set RR_DB_PATH after this module loads.
+const dbPath = () => process.env.RR_DB_PATH
   || (isServerless
     ? path.join(os.tmpdir(), 'resume_rater_db.json')
     : path.join(__dirname, '..', '..', '.data', 'db.json'));
@@ -30,8 +31,8 @@ const emptyLocal = () => ({ users: [], resumes: [], evaluations: [], contacts: [
 function loadLocal() {
   if (local) return local;
   try {
-    if (fs.existsSync(dbPath)) {
-      const parsed = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+    if (fs.existsSync(dbPath())) {
+      const parsed = JSON.parse(fs.readFileSync(dbPath(), 'utf8'));
       local = { ...emptyLocal(), ...parsed };
       return local;
     }
@@ -44,14 +45,16 @@ function loadLocal() {
 
 function saveLocal() {
   try {
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    const tmp = `${dbPath}.${process.pid}.tmp`;
+    fs.mkdirSync(path.dirname(dbPath()), { recursive: true });
+    const tmp = `${dbPath()}.${process.pid}.tmp`;
     fs.writeFileSync(tmp, JSON.stringify(local), 'utf8');
-    fs.renameSync(tmp, dbPath);
+    fs.renameSync(tmp, dbPath());
   } catch (err) {
     console.warn('Notice: local database write skipped:', err.message);
   }
 }
+
+const memoryUsage = new Map();
 
 // ── Public API (all async) ──────────────────────────────────────────────────
 /**
@@ -175,6 +178,31 @@ export const db = {
     s.users = s.users.filter(u => u.id !== userId);
     saveLocal();
     return removed;
+  },
+
+  /**
+   * Atomically count one upstream API call for a provider in a period and say
+   * whether it is within `limit`. Backed by Postgres when configured, so quotas
+   * survive serverless cold starts; in-memory otherwise.
+   */
+  usage: {
+    async consume(provider, period, limit) {
+      if (await usePostgres()) {
+        const { rowCount } = await query(
+          `INSERT INTO api_usage (provider, period, count) VALUES ($1, $2, 1)
+           ON CONFLICT (provider, period) DO UPDATE SET count = api_usage.count + 1
+           WHERE api_usage.count < $3`,
+          [provider, period, limit]
+        );
+        return rowCount > 0;
+      }
+      const key = `${provider}:${period}`;
+      const used = memoryUsage.get(key) || 0;
+      if (used >= limit) return false;
+      memoryUsage.set(key, used + 1);
+      return true;
+    },
+    _reset() { memoryUsage.clear(); }
   },
 
   contacts: {

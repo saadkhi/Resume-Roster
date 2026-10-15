@@ -9,6 +9,7 @@
  * setting the matching environment variables (see `envKeys`).
  */
 import { scoreMatch, predictCategory } from './nlp.js';
+import { db } from '../db/index.js';
 
 const USER_AGENT = 'ResumeRater/1.0 (+https://github.com/saadkhi/Resume-Roster)';
 const ATTEMPT_TIMEOUT_MS = 7_000;
@@ -142,6 +143,23 @@ async function mapLimit(items, limit, fn) {
     }
   }));
   return out;
+}
+
+/** "3 days ago" style strings (SerpApi) to an approximate ISO date. */
+function relativeToIso(text) {
+  const m = /(\d+)\s*(hour|day|week|month)/i.exec(String(text || ''));
+  if (!m) return null;
+  const unit = { hour: 3_600_000, day: 86_400_000, week: 7 * 86_400_000, month: 30 * 86_400_000 }[m[2].toLowerCase()];
+  return new Date(Date.now() - Number(m[1]) * unit).toISOString();
+}
+
+/** Monthly quota guard (persistent when a database is configured). */
+async function consumeMonthly(provider, envName, fallback) {
+  const limit = Math.max(1, Number(process.env[envName]) || fallback);
+  const period = new Date().toISOString().slice(0, 7);
+  if (!(await db.usage.consume(provider, period, limit))) {
+    throw new Error('request limit reached (protecting free quota)');
+  }
 }
 
 const SLUG_RE = /^[a-z0-9][a-z0-9._-]{0,60}$/i;
@@ -334,6 +352,58 @@ export const PROVIDERS = [
     }
   },
 
+  {
+    id: 'landingjobs', name: 'Landing.jobs', homepage: 'https://landing.jobs', feed: true, ttl: 30 * 60_000,
+    async fetch() {
+      const data = await getJson('https://landing.jobs/api/v1/jobs?limit=50');
+      const sym = { EUR: '€', USD: '$', GBP: '£' };
+      return (Array.isArray(data) ? data : []).map(j => {
+        const loc = (j.locations || []).map(l => [l.city, l.country_code].filter(Boolean).join(', ')).filter(Boolean).join(' · ');
+        const company = /\/at\/([^/]+)\//.exec(j.url || '')?.[1];
+        return normalize('landingjobs', 'Landing.jobs', {
+          id: j.id, title: j.title, company: company ? titleCase(company) : '', location: loc || (j.remote ? 'Remote' : ''),
+          remote: typeof j.remote === 'boolean' ? j.remote : null,
+          description: [j.role_description, j.main_requirements].filter(Boolean).join(' '),
+          url: j.url, postedAt: j.published_at || j.created_at,
+          salary: salaryText(j.gross_salary_low, j.gross_salary_high, sym[j.currency_code] ?? `${j.currency_code || ''} `),
+          tags: [...(j.tags || []), j.type].filter(Boolean)
+        });
+      });
+    }
+  },
+  {
+    id: 'hnhiring', name: 'Hacker News: Who is hiring?', homepage: 'https://news.ycombinator.com/submitted?id=whoishiring',
+    async fetch({ q }) {
+      const story = await cached('hn:story', 6 * 60 * 60_000, async () => {
+        const d = await getJson('https://hn.algolia.com/api/v1/search_by_date?tags=story,author_whoishiring&hitsPerPage=6');
+        const hit = (d.hits || []).find(h => /who is hiring/i.test(h.title || ''));
+        if (!hit) throw new Error('no current thread');
+        return hit.objectID;
+      });
+      const p = new URLSearchParams({ tags: `comment,story_${story}`, hitsPerPage: '100' });
+      if (q) p.set('query', q);
+      const data = await getJson(`https://hn.algolia.com/api/v1/${q ? 'search' : 'search_by_date'}?${p}`);
+      return (data.hits || [])
+        .filter(h => String(h.parent_id) === String(story) && h.comment_text) // top-level posts only
+        .map(h => {
+          const text = htmlToText(h.comment_text, 2000);
+          const head = text.split('\n')[0].split('|').map(x => x.trim()).filter(Boolean);
+          const hasRoleSegment = head.length >= 2;
+          return normalize('hnhiring', 'Hacker News: Who is hiring?', {
+            id: h.objectID,
+            title: hasRoleSegment ? head[1] : (head[0] || text.slice(0, 90)),
+            company: hasRoleSegment ? head[0] : 'See post',
+            location: head.slice(2).find(x => !/^(full|part)[- ]?time$|^intern/i.test(x)) || '',
+            remote: /\bremote\b/i.test(head.join(' ')) ? true : null,
+            description: text,
+            url: `https://news.ycombinator.com/item?id=${h.objectID}`,
+            postedAt: h.created_at,
+            tags: ['Hacker News']
+          });
+        });
+    }
+  },
+
   // Company career boards (public ATS APIs). Override the company lists with
   // GREENHOUSE_BOARDS / LEVER_BOARDS / ASHBY_BOARDS (comma-separated slugs).
   {
@@ -465,6 +535,63 @@ export const PROVIDERS = [
         id: j.id, title: j.role, company: j.company_name, location: j.location, remote: !!j.remote,
         description: j.text, url: j.url, postedAt: j.date_posted, tags: [...(j.keywords || []), j.employment_type].filter(Boolean)
       }));
+    }
+  },
+  {
+    id: 'jsearch', name: 'JSearch (LinkedIn, Indeed, Glassdoor via Google Jobs)', homepage: 'https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch',
+    envKeys: ['JSEARCH_API_KEY'],
+    async fetch({ q }) {
+      await consumeMonthly('jsearch', 'JSEARCH_PER_MONTH', 150);
+      const p = new URLSearchParams({ query: q || 'software developer', page: '1', num_pages: '1' });
+      if (process.env.JSEARCH_COUNTRY) p.set('country', process.env.JSEARCH_COUNTRY.toLowerCase().slice(0, 2));
+      const data = await getJson(`https://jsearch.p.rapidapi.com/search?${p}`, {
+        headers: { 'X-RapidAPI-Key': process.env.JSEARCH_API_KEY, 'X-RapidAPI-Host': 'jsearch.p.rapidapi.com' }
+      });
+      return (data.data || []).slice(0, PER_PROVIDER_LIMIT).map(j => normalize('jsearch', 'JSearch', {
+        id: j.job_id, title: j.job_title, company: j.employer_name,
+        location: [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', '),
+        remote: typeof j.job_is_remote === 'boolean' ? j.job_is_remote : null,
+        description: j.job_description, url: j.job_apply_link, postedAt: j.job_posted_at_datetime_utc,
+        salary: salaryText(j.job_min_salary, j.job_max_salary, j.job_salary_currency ? `${j.job_salary_currency} ` : '$'),
+        tags: [j.job_publisher ? `via ${j.job_publisher}` : '', j.job_employment_type].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'serpapi', name: 'Google Jobs (SerpApi)', homepage: 'https://serpapi.com/google-jobs-api', envKeys: ['SERPAPI_KEY'],
+    async fetch({ q }) {
+      await consumeMonthly('serpapi', 'SERPAPI_PER_MONTH', 80);
+      const p = new URLSearchParams({ engine: 'google_jobs', q: q || 'software developer', hl: 'en', api_key: process.env.SERPAPI_KEY });
+      const data = await getJson(`https://serpapi.com/search.json?${p}`);
+      return (data.jobs_results || []).slice(0, PER_PROVIDER_LIMIT).map(j => normalize('serpapi', 'Google Jobs', {
+        id: j.job_id, title: j.title, company: j.company_name, location: j.location,
+        remote: j.detected_extensions?.work_from_home === true ? true : null,
+        description: j.description, url: j.apply_options?.[0]?.link || j.share_link,
+        postedAt: relativeToIso(j.detected_extensions?.posted_at), salary: j.detected_extensions?.salary,
+        tags: [j.via ? `via ${String(j.via).replace(/^via\s+/i, '')}` : '', j.detected_extensions?.schedule_type].filter(Boolean)
+      }));
+    }
+  },
+  {
+    id: 'usajobs', name: 'USAJOBS', homepage: 'https://www.usajobs.gov', envKeys: ['USAJOBS_API_KEY', 'USAJOBS_EMAIL'],
+    async fetch({ q }) {
+      const p = new URLSearchParams({ ResultsPerPage: '25' });
+      if (q) p.set('Keyword', q);
+      const data = await getJson(`https://data.usajobs.gov/api/search?${p}`, {
+        headers: { Host: 'data.usajobs.gov', 'User-Agent': process.env.USAJOBS_EMAIL, 'Authorization-Key': process.env.USAJOBS_API_KEY }
+      });
+      const items = data.SearchResult?.SearchResultItems || [];
+      return items.map(({ MatchedObjectDescriptor: d }) => {
+        const pay = d.PositionRemuneration?.[0];
+        return normalize('usajobs', 'USAJOBS', {
+          id: d.PositionID, title: d.PositionTitle, company: d.OrganizationName || d.DepartmentName,
+          location: d.PositionLocationDisplay, remote: /remote|telework/i.test(d.PositionLocationDisplay || '') || null,
+          description: d.UserArea?.Details?.JobSummary || d.QualificationSummary,
+          url: d.PositionURI || d.ApplyURI?.[0], postedAt: d.PublicationStartDate,
+          salary: salaryText(Number(pay?.MinimumRange), Number(pay?.MaximumRange), '$'),
+          tags: [d.PositionSchedule?.[0]?.Name, pay?.Description].filter(Boolean)
+        });
+      });
     }
   }
 ];

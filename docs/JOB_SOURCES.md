@@ -4,7 +4,7 @@ Everything below is pulled live by the server (`src/services/liveJobs.js`) and
 shown in the **Live job openings** section. Each source is isolated: one failing
 never breaks the others.
 
-## 1. Implemented: free, no key, no registration (15)
+## 1. Implemented: free, no key, no registration (17)
 
 | Source | What it covers | How it is fetched | Cache | Notes |
 |---|---|---|---|---|
@@ -15,6 +15,8 @@ never breaks the others.
 | Artificial Intelligence Jobs | AI / ML | `artificialintelligencejobs.co/api/jobs?q=` | 5 min | Server-side search. |
 | freehire | Aggregates company ATS boards | `freehire.dev/api/v1/jobs`, `/jobs/search?q=` | 5 min | |
 | CuratorSearch | Museum and gallery jobs | `curatorsearch.com/api/jobs?q=` | 5 min | Niche; rarely relevant to tech resumes. |
+| Landing.jobs | Tech jobs in Portugal / EU, with salary | `landing.jobs/api/v1/jobs` | 30 min | |
+| Hacker News: Who is hiring? | Startup and tech posts from the current monthly thread | Algolia HN API, top-level comments of the latest thread | 5 min | Posts are free-form ("Company \| Role \| Location"); links go to the HN comment. |
 | Remotive | Remote tech / general | `remotive.com/api/remote-jobs` | 6 h | They ask for sparing use, hence the long cache. |
 | Jobicy | Remote jobs, with salary | `jobicy.com/api/v2/remote-jobs` | 1 h | |
 | Himalayas | Remote jobs, with salary | `himalayas.app/jobs/api[/search]` | 5 min | Server-side search. |
@@ -44,6 +46,25 @@ calls per minute; Jooble 150/day; Findwork 30/min; Reed 500/day). Override with
 `ADZUNA_PER_MINUTE`, `ADZUNA_PER_DAY`, `JOOBLE_PER_DAY`, `FINDWORK_PER_MINUTE`,
 `REED_PER_DAY`.
 
+## 2b. Implemented: free tiers that need a key you create yourself
+
+Built and **off by default**. Each includes a persistent monthly request cap
+(stored in Postgres when `DATABASE_URL` is set) so a free tier is never exceeded.
+
+| Source | What it adds | Details you must provide | Free tier (check current terms) | Env variables |
+|---|---|---|---|---|
+| JSearch (RapidAPI) | **LinkedIn, Indeed, Glassdoor, ZipRecruiter** postings via Google for Jobs; each job shows "via <publisher>" | RapidAPI key from https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch (subscribe to the Basic plan) | ~200 requests / month | `JSEARCH_API_KEY`, optional `JSEARCH_COUNTRY` (e.g. `us`), `JSEARCH_PER_MONTH` (default 150) |
+| Google Jobs via SerpApi | Same Google for Jobs data | API key from https://serpapi.com | ~100 searches / month | `SERPAPI_KEY`, `SERPAPI_PER_MONTH` (default 80) |
+| USAJOBS | US federal government jobs | Free key from https://developer.usajobs.gov/APIRequest plus the email you registered with | Free | `USAJOBS_API_KEY`, `USAJOBS_EMAIL` |
+
+## 2c. Any website: bring your own job
+
+The **/apply** page includes a bookmarklet ("Send to Resume Rater"). Drag it to
+the bookmarks bar; on any job page (LinkedIn, Indeed, Glassdoor, a company site)
+click it and the page text opens in the Apply tool, where it is extracted, scored
+against your resume and turned into a draft email. Nothing is fetched from those
+sites by the server, so there is no scraping and no terms-of-service issue.
+
 ## 3. Not implemented: would need details, or are not usable
 
 | Source | Why not | What would be required |
@@ -53,7 +74,10 @@ calls per minute; Jooble 150/day; Findwork 30/min; Reed 500/day). Override with
 | Jobs2Careers / Talroo, Juju | Publisher accounts | Publisher ID + key, approval by the provider. |
 | JobsPipe, Techmap, JobDataLake, Jobven, RankFabrik | Paid or key-gated aggregators | Paid plan / API key. |
 | Upwork | OAuth app | Registered OAuth application and per-user consent. |
-| Arbeitsagentur (Germany) | Public API but I could not verify access from here | A public client key header (`X-API-Key`); needs testing. |
+| Arbeitsagentur (Germany) | Responded 403 from outside Germany in testing | Retry from a German IP, or contact the provider; then it is a small adapter. |
+| ReliefWeb | v1 decommissioned; v2 needs an approved app name | Register an app name at https://apidoc.reliefweb.int/. |
+| Remote.co RSS | Feed timed out in testing | Re-test; trivial to add as an RSS source. |
+| Gmail job-alert import | Needs a Google OAuth app (verification) | Google Cloud OAuth client + user consent flow. |
 | NoFluffJobs | Public but the unfiltered response is ~120 MB | Would need server-side filters/paging before it is safe to call. |
 | DevITjobs UK, GraphQL Jobs | Endpoints no longer serve a public API | n/a |
 | LinkedIn, Indeed, Glassdoor | No public job API; scraping breaks their terms | n/a |

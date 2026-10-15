@@ -218,7 +218,7 @@ describe('providers', () => {
     const keyless = PROVIDERS.filter(p => !p.envKeys).map(p => p.id).sort();
     assert.deepEqual(keyless, [
       'aidevboard', 'aijobs', 'arbeitnow', 'ashby', 'curatorsearch', 'freehire', 'greenhouse', 'himalayas',
-      'jobicy', 'lever', 'remoteok', 'remotive', 'themuse', 'weworkremotely', 'workingnomads'
+      'hnhiring', 'jobicy', 'landingjobs', 'lever', 'remoteok', 'remotive', 'themuse', 'weworkremotely', 'workingnomads'
     ]);
     const keyed = PROVIDERS.filter(p => p.envKeys);
     assert.ok(keyed.length >= 4);

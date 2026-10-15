@@ -32,9 +32,9 @@ The draft is editable. Use **Open in my email app** (mailto), **Open in Gmail**,
 
 `GET|POST /api/live-jobs` fans out to the job APIs listed under **Jobs** in [saadkhi/public-apis](https://github.com/saadkhi/public-apis), normalises results to one schema, de-duplicates them, and (when a resume is supplied) ranks by match score. Each source is isolated: a slow or failing source is reported in the response and never breaks the page. Results are cached for a few minutes.
 
-**15 keyless sources** are always on: Remote OK, Arbeitnow, The Muse, AI Dev Jobs, Artificial Intelligence Jobs, freehire, CuratorSearch, Remotive, Jobicy, Himalayas, Working Nomads, We Work Remotely, and company boards on Greenhouse, Lever and Ashby (company lists configurable with `GREENHOUSE_BOARDS`, `LEVER_BOARDS`, `ASHBY_BOARDS`).
+**17 keyless sources** are always on: Remote OK, Arbeitnow, The Muse, AI Dev Jobs, Artificial Intelligence Jobs, freehire, CuratorSearch, Remotive, Jobicy, Himalayas, Working Nomads, We Work Remotely, Landing.jobs, Hacker News "Who is hiring?", and company boards on Greenhouse, Lever and Ashby (company lists configurable with `GREENHOUSE_BOARDS`, `LEVER_BOARDS`, `ASHBY_BOARDS`).
 
-**4 keyed sources** switch on when configured: Adzuna (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `ADZUNA_COUNTRY` as a list), Reed (`REED_API_KEY`), Jooble (`JOOBLE_API_KEY`), Findwork (`FINDWORK_API_KEY`). The app caps its own usage to stay inside the free tiers.
+**7 keyed sources** switch on when configured (JSearch, SerpApi and USAJOBS add LinkedIn/Indeed/Glassdoor-via-Google and US federal jobs, with persistent monthly caps): `JSEARCH_API_KEY`, `SERPAPI_KEY`, `USAJOBS_API_KEY` + `USAJOBS_EMAIL`, and Adzuna (`ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `ADZUNA_COUNTRY` as a list), Reed (`REED_API_KEY`), Jooble (`JOOBLE_API_KEY`), Findwork (`FINDWORK_API_KEY`). The app caps its own usage to stay inside the free tiers.
 
 The complete list, with cache times, required details and everything that was considered but not integrated, is in [docs/JOB_SOURCES.md](docs/JOB_SOURCES.md). Adding a source is one entry in `src/services/liveJobs.js`.
 
