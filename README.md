@@ -22,6 +22,12 @@ Aimed at job seekers, students and career-changers. Scores are keyword-based est
 
 Nothing is padded or floored to look better: a resume with no matching vocabulary scores 0.
 
+## Apply by email
+
+Paste a recruiter's LinkedIn hiring post into **Apply by email from a LinkedIn post**. The server extracts the role, company, deadline, location, requirements and the apply-to email address (regex, always works), then writes a short, natural application email through [OpenRouter](https://openrouter.ai) (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`, default `openai/gpt-4o-mini`). Without a key you get a clean template draft instead.
+
+The draft is editable. Use **Open in my email app** (mailto), **Open in Gmail**, or **Copy email**, then attach your resume PDF and send it from your own account: the app never sends email itself. The recipient is only ever taken from the pasted post, the model sees only the post facts, your name, an optional note and a few matching skill keywords (never your resume file or full text), and the post is treated as untrusted data in the prompt.
+
 ## Live jobs
 
 `GET|POST /api/live-jobs` fans out to the job APIs listed under **Jobs** in [saadkhi/public-apis](https://github.com/saadkhi/public-apis), normalises results to one schema, de-duplicates them, and (when a resume is supplied) ranks by match score. Each source is isolated: a slow or failing source is reported in the response and never breaks the page. Results are cached for a few minutes.
@@ -66,6 +72,7 @@ With no environment variables the analyzer works fully. Accounts need `SESSION_S
 | `DATABASE_SSL_CA` | Optional CA certificate (PEM) to pin the database server certificate. |
 | `ADMIN_OVERRIDE_KEY` | Optional operator secret (≥16 chars) for `/api/admin/*`. |
 | `CONTACT_EMAIL` | Shown on the legal pages (optional). |
+| `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | Optional: AI-written application emails (template fallback without a key). |
 | `ADZUNA_*`, `REED_API_KEY`, `JOOBLE_API_KEY`, `FINDWORK_API_KEY` | Optional: enable extra job sources. |
 
 The schema in `src/db/schema.js` is applied automatically (idempotently) on first connect.

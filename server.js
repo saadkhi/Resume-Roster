@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { fileURLToPath, pathToFileURL } from 'url';
 import { db } from './src/db/index.js';
 import { fetchLiveJobs } from './src/services/liveJobs.js';
+import { draftApplication, openRouterConfigured } from './src/services/applyEmail.js';
 import { scoreMatch, atsChecks } from './src/services/nlp.js';
 import { analyzeResume, UnreadablePdfError } from './src/services/resumeParser.js';
 import { hashPassword, verifyPassword, dummyVerify } from './src/services/passwords.js';
@@ -14,7 +15,7 @@ import {
   sessionMiddleware, sessionsEnabled, setSessionCookie, clearSessionCookie
 } from './src/middleware/session.js';
 import {
-  apiLimiter, uploadLimiter, authLimiter, getSafeErrorMessage, isPdfBuffer,
+  apiLimiter, uploadLimiter, authLimiter, draftLimiter, getSafeErrorMessage, isPdfBuffer,
   securityHeaders, sameOriginGuard
 } from './src/middleware/security.js';
 import { requireAdminAuth } from './src/middleware/admin.js';
@@ -268,6 +269,28 @@ const handleLiveJobs = async (req, res) => {
 app.get('/api/live-jobs', apiLimiter, handleLiveJobs);
 app.post('/api/live-jobs', apiLimiter, handleLiveJobs);
 
+// ── Apply by email ──────────────────────────────────────────────────────────
+// Paste a hiring post, get structured details and a draft email. The user reviews
+// and sends it from their own mail client; the server never sends email.
+app.post('/api/apply/draft', draftLimiter, async (req, res) => {
+  const postText = typeof req.body?.postText === 'string' ? req.body.postText.trim() : '';
+  if (postText.length < 30) return fail(res, 400, 'Paste the full hiring post (at least a few lines).');
+  if (postText.length > 12_000) return fail(res, 413, 'That post is too long. Paste only the job post text.');
+  try {
+    const result = await draftApplication({
+      postText,
+      senderName: typeof req.body.senderName === 'string' ? req.body.senderName : '',
+      aboutYou: typeof req.body.aboutYou === 'string' ? req.body.aboutYou : '',
+      resumeText: typeof req.body.resumeText === 'string' ? req.body.resumeText.slice(0, MAX_MATCH_TEXT_CHARS) : ''
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return ok(res, result);
+  } catch (err) {
+    console.error('Draft failed:', err.message);
+    return fail(res, 500, 'Could not prepare the draft. Please try again.');
+  }
+});
+
 // ── Auth API ────────────────────────────────────────────────────────────────
 // Accounts are email + password (scrypt hashes in Postgres). On success the
 // server issues its own signed, httpOnly session cookie.
@@ -362,6 +385,7 @@ app.get('/api/health', apiLimiter, async (req, res) => {
   return ok(res, {
     status: 'ok',
     accounts: sessionsEnabled() && db.accountsAvailable(),
+    emailDrafting: openRouterConfigured() ? 'ai' : 'template',
     database: {
       configured: database.configured,
       connected: database.connected,

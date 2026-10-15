@@ -233,3 +233,24 @@ describe('matching API', () => {
     }
   });
 });
+
+describe('apply by email API', () => {
+  it('rejects empty or oversized posts', async () => {
+    assert.equal((await json('/api/apply/draft', { postText: 'hi' })).status, 400);
+    assert.equal((await json('/api/apply/draft', { postText: 'x'.repeat(13000) })).status, 413);
+  });
+
+  it('returns extracted details and a draft for a hiring post', async () => {
+    const res = await json('/api/apply/draft', {
+      postText: 'We are hiring!\nPosition: Data Analyst\nExperience: 2 years with SQL\nApply at: hr@acme-corp.com\nLast date to apply: 1 November 2026',
+      senderName: 'Sam Lee'
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.to, 'hr@acme-corp.com');
+    assert.equal(body.details.role, 'Data Analyst');
+    assert.match(body.subject, /Data Analyst/);
+    assert.match(body.body, /Sam Lee/);
+    assert.ok(['ai', 'template'].includes(body.source));
+  });
+});

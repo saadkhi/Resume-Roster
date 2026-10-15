@@ -1,0 +1,70 @@
+<section class="apply" id="apply-email" aria-labelledby="applyTitle">
+    <div class="live-head">
+        <div>
+            <h2 id="applyTitle">Apply by email from a LinkedIn post</h2>
+            <p class="muted small">Paste a recruiter's hiring post. We pull out the role, company, deadline and the email address, then draft a short, natural application email. You review it and send it from your own email account.</p>
+        </div>
+    </div>
+
+    <div class="apply-grid">
+        <form class="card" id="applyForm" novalidate>
+            <div class="field">
+                <label class="label" for="postText">Hiring post</label>
+                <textarea id="postText" class="textarea" rows="12" maxlength="12000" placeholder="Paste the full post text here, including the email address and requirements…"></textarea>
+            </div>
+            <div class="field">
+                <label class="label" for="senderName">Your name</label>
+                <input id="senderName" class="input" type="text" maxlength="80" autocomplete="name" placeholder="Used in the greeting and sign-off">
+            </div>
+            <div class="field">
+                <label class="label" for="aboutYou">One line about you <span class="muted">(optional)</span></label>
+                <input id="aboutYou" class="input" type="text" maxlength="300" placeholder="e.g. 9 years in knit fabric finishing, currently at XYZ Mills">
+            </div>
+            <label class="toggle" id="useResumeWrap" hidden style="margin-top:0.75rem">
+                <input type="checkbox" id="useResume" checked>
+                <span>Highlight skills from the resume I analyzed above</span>
+            </label>
+            <button type="submit" class="btn btn-primary btn-block" id="btnDraft" style="margin-top:1rem">Extract details &amp; draft email</button>
+            <p class="hint">The post text, your name and your note are sent to OpenRouter to write the draft. Your resume file and full text are not sent.</p>
+            <div class="alert alert-error" id="applyError" role="alert" hidden></div>
+        </form>
+
+        <div id="applyResult" hidden>
+            <div class="card">
+                <h3 class="card-title">Extracted details</h3>
+                <dl class="detail-grid" id="detailGrid"></dl>
+                <div class="alert alert-info" id="noEmailNote" hidden>No email address was found in this post. It may ask you to apply through a link instead. Check the post and use the link below if there is one.</div>
+                <div id="linkRow" class="small" hidden></div>
+            </div>
+
+            <div class="card">
+                <div class="live-head" style="align-items:center">
+                    <h3 class="card-title">Your draft</h3>
+                    <span class="badge" id="draftSource"></span>
+                </div>
+                <p class="small muted" id="draftNotice" hidden></p>
+
+                <div class="field" style="margin-top:0.75rem">
+                    <label class="label" for="draftTo">To</label>
+                    <input id="draftTo" class="input" type="email" autocomplete="off" placeholder="recruiter@company.com">
+                </div>
+                <div class="field">
+                    <label class="label" for="draftSubject">Subject</label>
+                    <input id="draftSubject" class="input" type="text" maxlength="160">
+                </div>
+                <div class="field">
+                    <label class="label" for="draftBody">Message</label>
+                    <textarea id="draftBody" class="textarea" rows="12"></textarea>
+                </div>
+
+                <div class="job-actions" style="margin-top:1rem">
+                    <a class="btn btn-primary" id="btnMailto" href="#">Open in my email app</a>
+                    <a class="btn btn-secondary" id="btnGmail" href="#" target="_blank" rel="noopener noreferrer">Open in Gmail</a>
+                    <button type="button" class="btn btn-secondary" id="btnCopyDraft">Copy email</button>
+                    <button type="button" class="btn btn-ghost" id="btnRedraft">Write another version</button>
+                </div>
+                <p class="hint">Read it through and edit anything you like. Remember to <strong>attach your resume PDF</strong>; email links cannot attach files for you.</p>
+            </div>
+        </div>
+    </div>
+</section>

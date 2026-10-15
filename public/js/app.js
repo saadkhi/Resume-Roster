@@ -545,6 +545,10 @@
     }).catch(function (err) { showError(err.message); });
   });
 
+  // Let the apply-by-email tool use the analyzed resume (never persisted or sent as a file).
+  window.RR = window.RR || {};
+  window.RR.getResumeText = function () { return state.result ? state.result.rawText : ''; };
+
   /* ── init ─────────────────────────────────────────────────────────── */
   refreshControls();
   loadLiveJobs();

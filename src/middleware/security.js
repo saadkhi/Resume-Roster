@@ -20,6 +20,7 @@ function limiter(max, message) {
 
 export const apiLimiter = limiter(120, 'Too many requests. Please slow down.');
 export const uploadLimiter = limiter(20, 'Too many uploads. Please wait a moment and try again.');
+export const draftLimiter = limiter(8, 'Too many drafts in a short time. Please wait a minute and try again.');
 export const authLimiter = limiter(10, 'Too many sign-in attempts. Please wait a minute and try again.');
 
 /** True when the buffer starts with the PDF magic number. */
