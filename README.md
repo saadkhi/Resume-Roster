@@ -35,7 +35,7 @@ Nothing is padded or floored to look better: a resume with no matching vocabular
 | Artificial Intelligence Jobs | no | AI/ML roles |
 | freehire | no | Aggregates company ATS boards |
 | CuratorSearch | no | Museum and gallery jobs |
-| Adzuna | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY` (`ADZUNA_COUNTRY`, default `us`) | enabled when set |
+| Adzuna | `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`; `ADZUNA_COUNTRY` takes one code or a list such as `us,gb,in,ca,au` (max 6; default `us`) | enabled when set; free tier is rate-limited, so the app caps itself at 25 results and 25 requests/minute |
 | Reed | `REED_API_KEY` | enabled when set |
 | Jooble | `JOOBLE_API_KEY` | enabled when set |
 | Findwork | `FINDWORK_API_KEY` | enabled when set |

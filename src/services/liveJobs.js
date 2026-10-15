@@ -224,19 +224,45 @@ export const PROVIDERS = [
   // ── API-key sources (enabled only when configured) ────────────────────────
   {
     id: 'adzuna', name: 'Adzuna', homepage: 'https://www.adzuna.com', envKeys: ['ADZUNA_APP_ID', 'ADZUNA_APP_KEY'],
+    // ADZUNA_COUNTRY accepts one code or a comma-separated list, e.g. "us,gb,in,ca,au".
     async fetch({ q }) {
-      const country = (process.env.ADZUNA_COUNTRY || 'us').toLowerCase();
-      const p = new URLSearchParams({
-        app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY,
-        results_per_page: '25', 'content-type': 'application/json'
-      });
-      if (q) p.set('what', q);
-      const data = await getJson(`https://api.adzuna.com/v1/api/jobs/${encodeURIComponent(country)}/search/1?${p}`);
-      return (data.results || []).map(j => normalize('adzuna', 'Adzuna', {
-        id: j.id, title: j.title, company: j.company?.display_name, location: j.location?.display_name,
-        remote: null, description: j.description, url: j.redirect_url, postedAt: j.created,
-        salary: salaryText(j.salary_min, j.salary_max, CURRENCY_BY_COUNTRY[country] ?? ''), tags: [j.category?.label, j.contract_time].filter(Boolean)
-      }));
+      const countries = adzunaCountries();
+      // Each country is one upstream request; keep the total at 25 results at most.
+      const perCountry = Math.max(3, Math.floor(25 / countries.length));
+      // Sequential on purpose: Adzuna rate-limits bursts, and a 429 should stop
+      // the remaining calls instead of hammering the API.
+      const out = [];
+      let firstError;
+      for (let i = 0; i < countries.length; i++) {
+        const country = countries[i];
+        try {
+          if (i > 0) {
+            consumeBudget('adzuna'); // the first request is counted by the caller
+            await new Promise(r => setTimeout(r, 1100)); // stay under Adzuna's burst limit
+          }
+          const p = new URLSearchParams({
+            app_id: process.env.ADZUNA_APP_ID, app_key: process.env.ADZUNA_APP_KEY,
+            results_per_page: String(perCountry), 'content-type': 'application/json'
+          });
+          if (q) p.set('what', q);
+          const data = await getJson(`https://api.adzuna.com/v1/api/jobs/${country}/search/1?${p}`, { retries: 0 });
+          for (const j of data.results || []) {
+            out.push(normalize('adzuna', 'Adzuna', {
+              id: j.id, title: j.title, company: j.company?.display_name, location: j.location?.display_name,
+              remote: null, description: j.description, url: j.redirect_url, postedAt: j.created,
+              salary: salaryText(j.salary_min, j.salary_max, CURRENCY_BY_COUNTRY[country] ?? ''),
+              tags: [country.toUpperCase(), j.category?.label, j.contract_time].filter(Boolean)
+            }));
+          }
+        } catch (err) {
+          firstError ||= err;
+          // Only a rate limit (or our own budget) should stop the run; one country
+          // having a bad moment must not hide the others.
+          if (/HTTP 429|request limit/.test(err.message)) break;
+        }
+      }
+      if (!out.length && firstError) throw firstError;
+      return out;
     }
   },
   {
@@ -282,6 +308,15 @@ export const PROVIDERS = [
     }
   }
 ];
+
+const ADZUNA_COUNTRIES = new Set(['at', 'au', 'be', 'br', 'ca', 'ch', 'de', 'es', 'fr', 'gb', 'in', 'it', 'mx', 'nl', 'nz', 'pl', 'sg', 'us', 'za']);
+
+/** Valid Adzuna country codes from ADZUNA_COUNTRY (default "us"), max 6. */
+export function adzunaCountries() {
+  const list = String(process.env.ADZUNA_COUNTRY || 'us').toLowerCase().split(/[\s,]+/)
+    .filter(c => ADZUNA_COUNTRIES.has(c));
+  return [...new Set(list.length ? list : ['us'])].slice(0, 6);
+}
 
 export const providerEnabled = (p) => !p.envKeys || p.envKeys.every(k => !!process.env[k]);
 
