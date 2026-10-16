@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     create_engine,
     func,
+    or_,
     select,
 )
 from sqlalchemy.exc import IntegrityError
@@ -307,3 +308,79 @@ def record_source_run(
             )
         )
         session.commit()
+
+
+_LIKE_ESCAPE = chr(92)
+
+
+def _escape_like(value: str) -> str:
+    return (
+        value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE + _LIKE_ESCAPE)
+        .replace("%", _LIKE_ESCAPE + "%")
+        .replace("_", _LIKE_ESCAPE + "_")
+    )
+
+
+def query_jobs(
+    *,
+    q: str | None = None,
+    location: str | None = None,
+    site: str | None = None,
+    job_type: str | None = None,
+    workplace_type: str | None = None,
+    is_remote: bool | None = None,
+    posted_within_hours: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[int, list[Job]]:
+    """Return (total matches, page of jobs), newest first by posting or first-seen time."""
+    effective_date = func.coalesce(Job.date_posted, Job.first_seen_at)
+    conditions = []
+    if q:
+        pattern = f"%{_escape_like(q.strip())}%"
+        conditions.append(
+            or_(
+                *(
+                    column.ilike(pattern, escape=_LIKE_ESCAPE)
+                    for column in (Job.title, Job.company, Job.description, Job.tags)
+                )
+            )
+        )
+    if location:
+        conditions.append(
+            Job.location.ilike(f"%{_escape_like(location.strip())}%", escape=_LIKE_ESCAPE)
+        )
+    if site:
+        conditions.append(func.lower(Job.site) == site.strip().lower())
+    if job_type:
+        conditions.append(func.lower(Job.job_type) == job_type.strip().lower())
+    if workplace_type:
+        conditions.append(func.lower(Job.workplace_type) == workplace_type.strip().lower())
+    if is_remote is not None:
+        conditions.append(Job.is_remote.is_(is_remote))
+    if posted_within_hours:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=posted_within_hours)
+        conditions.append(effective_date >= cutoff)
+    with get_session() as session:
+        total = session.scalar(select(func.count()).select_from(Job).where(*conditions)) or 0
+        rows = session.scalars(
+            select(Job)
+            .where(*conditions)
+            .order_by(effective_date.desc(), Job.unique_hash)
+            .limit(limit)
+            .offset(offset)
+        ).all()
+        return int(total), list(rows)
+
+
+def get_job(unique_hash: str) -> Job | None:
+    with get_session() as session:
+        return session.get(Job, unique_hash)
+
+
+def get_site_counts() -> list[tuple[str, int]]:
+    with get_session() as session:
+        rows = session.execute(
+            select(Job.site, func.count()).group_by(Job.site).order_by(func.count().desc())
+        ).all()
+        return [(site, int(count)) for site, count in rows]

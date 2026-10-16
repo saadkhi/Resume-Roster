@@ -196,3 +196,38 @@ Implement the `SourceAdapter` shape in `scrapers/base.py`: a stable `name` and
 metadata in `SourceResult`. Add it to `_default_adapters()` in `main.py`, add
 mocked HTTP tests under `tests/`, and document its official interface and
 verification status here. Do not bypass access controls or overstate support.
+
+## Jobs API (for Resume-Roster and other clients)
+
+A read-only FastAPI service exposes the collected jobs from the same
+`DATABASE_URL` the collector writes to. Point it at the shared PostgreSQL
+database so it sees every scheduled run.
+
+```bash
+uvicorn api:create_app --factory --host 0.0.0.0 --port 8000
+```
+
+| Variable | Meaning |
+| --- | --- |
+| `DATABASE_URL` | Same database as the collector. |
+| `API_KEY` | If set, `/jobs*` and `/sources` require an `X-API-Key` header. Set it in production. |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the API. Not needed for server-to-server calls (Resume-Roster's Express backend). |
+
+Endpoints (interactive docs at `/docs`):
+
+- `GET /health` — liveness and job count (no key needed).
+- `GET /jobs` — newest first. Query params: `q` (title/company/description/tags),
+  `location`, `source`, `job_type`, `workplace_type`, `remote`,
+  `posted_within_hours`, `limit` (1-200, default 50), `offset`,
+  `include_description`. Returns `{total, limit, offset, items[]}`.
+- `GET /jobs/{id}` — one job including its description.
+- `GET /sources` — job counts per source.
+
+Example from Resume-Roster's Node backend:
+
+```js
+const res = await fetch(`${process.env.SCRABEEE_API_URL}/jobs?q=python&limit=50`, {
+  headers: { "X-API-Key": process.env.SCRABEEE_API_KEY },
+});
+const { total, items } = await res.json();
+```
