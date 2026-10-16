@@ -1,0 +1,13 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+attached_assets/
+jobs.db
+jobs.db-*
+output/
+*.log
