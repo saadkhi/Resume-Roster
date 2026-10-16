@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -24,6 +25,41 @@ class _LinkedInRateLimitHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         if "429" in record.getMessage():
             self.rate_limited.set()
+
+
+# JobSpy only *logs* HTTP errors ("ZipRecruiter response status code 403") and returns an empty
+# result, so without this a blocked board looks like a successful search with no jobs.
+_JOBSPY_LOGGER_NAMES = {
+    "indeed": "Indeed",
+    "linkedin": "LinkedIn",
+    "glassdoor": "Glassdoor",
+    "zip_recruiter": "ZipRecruiter",
+    "bayt": "Bayt",
+    "naukri": "Naukri",
+    "bdjobs": "BDJobs",
+    "hellowork": "HelloWork",
+}
+_BLOCK_STATUS_RE = re.compile(r"status code (403|429)\b")
+# After this many blocked responses with zero jobs ever returned, the board is considered
+# blocked for the rest of the run (typically a datacenter IP such as a GitHub runner).
+BLOCK_TRIP_THRESHOLD = 5
+
+
+class _BlockedResponseHandler(logging.Handler):
+    """Counts HTTP 403/429 responses that JobSpy logs instead of raising."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.ERROR)
+        self.count = 0
+        self.last_status: str | None = None
+        self._lock = threading.Lock()
+
+    def emit(self, record: logging.LogRecord) -> None:
+        match = _BLOCK_STATUS_RE.search(record.getMessage())
+        if match:
+            with self._lock:
+                self.count += 1
+                self.last_status = match.group(1)
 
 
 INDEED_COUNTRIES = {
@@ -64,6 +100,31 @@ class JobSpySource:
         self._linkedin_lock = threading.Lock()
         self._linkedin_rate_limited = threading.Event()
         self._last_linkedin_call: float | None = None
+        self._jobs_seen = 0
+        self._block_reported = False
+        self._state_lock = threading.Lock()
+        self._block_handler = _BlockedResponseHandler()
+        logging.getLogger(f"JobSpy:{_JOBSPY_LOGGER_NAMES.get(site_name, site_name)}").addHandler(
+            self._block_handler
+        )
+
+    @property
+    def blocked(self) -> bool:
+        """True once the provider has refused us repeatedly and never returned a job."""
+        return self._block_handler.count >= BLOCK_TRIP_THRESHOLD and self._jobs_seen == 0
+
+    def _skip_blocked(self, result: SourceResult) -> SourceResult:
+        with self._state_lock:
+            report = not self._block_reported
+            self._block_reported = True
+        if report:
+            result.errors.append(
+                f"{self.site_name}: blocked by the provider (HTTP "
+                f"{self._block_handler.last_status}); remaining searches skipped for this run"
+            )
+        result.finish()
+        result.status = "skipped"
+        return result
 
     @property
     def name(self) -> str:
@@ -81,6 +142,9 @@ class JobSpySource:
             result.finish()
             result.status = "skipped"
             return result
+        if self.blocked:
+            return self._skip_blocked(result)
+        blocked_before = self._block_handler.count
         try:
             from jobspy import scrape_jobs
 
@@ -123,6 +187,13 @@ class JobSpySource:
                     raw_result = scrape_jobs(**kwargs)
                 raw_jobs = _to_records(raw_result)
                 result.jobs.extend(raw_jobs)
+                with self._state_lock:
+                    self._jobs_seen += len(raw_jobs)
+                if not raw_jobs and self._block_handler.count > blocked_before:
+                    result.errors.append(
+                        f"{self.site_name}: blocked by the provider "
+                        f"(HTTP {self._block_handler.last_status})"
+                    )
             except Exception as exc:
                 if self.site_name == "linkedin" and "429" in str(exc):
                     self._linkedin_rate_limited.set()
