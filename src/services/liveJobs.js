@@ -23,14 +23,32 @@ const MAX_CACHE_ENTRIES = 200;
 // ── helpers ─────────────────────────────────────────────────────────────────
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'", '&nbsp;': ' ' };
 
-export function htmlToText(input, max = 2000) {
-  if (typeof input !== 'string') return '';
-  const text = input
+/** Repairs UTF-8 text that an upstream decoded as Latin-1 ("QuÃ©" -> "Qué"). */
+function fixMojibake(text) {
+  if (!/[ÃÂâ][\u0080-\u00BF\u2018-\u203A]/.test(text)) return text;
+  try {
+    const repaired = Buffer.from(text, 'latin1').toString('utf8');
+    return repaired.includes('\uFFFD') ? text : repaired;
+  } catch {
+    return text;
+  }
+}
+
+function stripTags(input) {
+  return input
     .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<\s*(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, '\n')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&(amp|lt|gt|quot|#39|apos|nbsp);/g, (m) => ENTITIES[m] || m)
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Math.min(Number(n), 0x10ffff)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Math.min(Number(n), 0x10ffff)));
+}
+
+export function htmlToText(input, max = 2000) {
+  if (typeof input !== 'string') return '';
+  let text = stripTags(input);
+  // Some feeds HTML-escape their HTML; decoding entities reveals tags, so strip once more.
+  if (/<\/?[a-z][^>]*>/i.test(text)) text = stripTags(text);
+  text = fixMojibake(text)
     .replace(/[ \t]+/g, ' ')
     .replace(/\s*\n\s*/g, '\n')
     .trim();

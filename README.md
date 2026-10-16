@@ -22,6 +22,10 @@ Aimed at job seekers, students and career-changers. Scores are keyword-based est
 
 Nothing is padded or floored to look better: a resume with no matching vocabulary scores 0.
 
+## Glass effect
+
+The floating mobile tab bar and the sticky job search bar use [liquidGL](https://github.com/naughtyduk/liquidGL) (MIT, WebGPU with WebGL and CSS fallbacks) for Apple-style liquid-glass refraction. The library is vendored to `public/vendor/liquidGL.js` by `npm run build` and loaded lazily after page load. It is progressive enhancement: every glass surface already has a CSS frosted look, and the effect is skipped for reduced-motion / reduced-transparency users, data-saver, and low-memory devices. Users can switch it off with the footer toggle or `?glass=off`. The CSP allows `worker-src blob:` for the library's rasteriser worker only.
+
 ## Apply by email
 
 Paste a recruiter's LinkedIn hiring post into **Apply by email from a LinkedIn post**. The server extracts the role, company, deadline, location, requirements and the apply-to email address (regex, always works), then writes a short, natural application email through [OpenRouter](https://openrouter.ai) (`OPENROUTER_API_KEY`, optional `OPENROUTER_MODEL`, default `openai/gpt-4o-mini`). Without a key you get a clean template draft instead.

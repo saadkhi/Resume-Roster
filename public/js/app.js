@@ -210,6 +210,7 @@
     el.factLength.textContent = r.stats.wordCount.toLocaleString() + ' words · ' + r.pages + (r.pages === 1 ? ' page' : ' pages');
     activateTab('tab-overview', false);
     loadLiveJobs();
+    window.dispatchEvent(new Event('rr:content'));
   }
 
   function renderSummary() {
@@ -504,6 +505,7 @@
     });
 
     el.btnMoreLive.hidden = total <= state.jobsShown;
+    window.dispatchEvent(new Event('rr:content'));
   }
 
   el.btnMoreLive.addEventListener('click', function () {

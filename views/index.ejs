@@ -210,12 +210,13 @@
             <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLive">Refresh</button>
         </div>
 
+        <div class="live-bar">
         <form class="live-toolbar" id="liveForm" role="search">
-            <label class="sr-only" for="liveQuery">Search jobs</label>
-            <input id="liveQuery" class="input" type="search" maxlength="100" placeholder="Search title, skill or company, e.g. python, data analyst">
+            <input id="liveQuery" class="input" type="search" aria-label="Search jobs" maxlength="100" placeholder="Search title, skill or company, e.g. python, data analyst">
             <label class="toggle"><input type="checkbox" id="liveRemote"> Remote only</label>
             <button type="submit" class="btn btn-primary">Search</button>
         </form>
+        </div>
 
         <div class="quick-chips" id="quickChips" aria-label="Quick searches">
             <button type="button" class="chip-btn" data-q="">All jobs</button>

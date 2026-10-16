@@ -9,6 +9,7 @@
         "esbuild": "^0.28.2",
         "express": "^5.2.1",
         "express-rate-limit": "^7.4.0",
+        "liquid-gl": "3.0.0",
         "multer": "^2.4.0",
         "pdf-parse": "^2.4.5",
         "pg": "^8.23.1",
@@ -392,6 +393,8 @@
     "keyv": ["keyv@4.5.4", "", { "dependencies": { "json-buffer": "3.0.1" } }, "sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw=="],
 
     "levn": ["levn@0.4.1", "", { "dependencies": { "prelude-ls": "^1.2.1", "type-check": "~0.4.0" } }, "sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ=="],
+
+    "liquid-gl": ["liquid-gl@3.0.0", "", {}, "sha512-UzNJQ7ggJzhZ0px7h/mJGo+KEeYjAwmsKJSVsC8y4eIm0+OpcTD/c5vX3v+f0uNa5VzC1yMqITdepTBGrk6yxQ=="],
 
     "locate-path": ["locate-path@6.0.0", "", { "dependencies": { "p-locate": "^5.0.0" } }, "sha512-iPZK6eYjbxRu3uB4/WZ3EsEIMJFMqAoopl3R+zuq0UjcAm/MO6KCweDgPfP3elTztoKP3KtnVHxTn2NHBSDVUw=="],
 

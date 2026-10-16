@@ -41,6 +41,19 @@ describe('htmlToText', () => {
   });
 });
 
+describe('htmlToText repairs', () => {
+  it('strips HTML that arrived HTML-escaped', () => {
+    const escaped = '&lt;div class="x"&gt;&lt;p&gt;About &lt;strong&gt;WPP&lt;/strong&gt; production&lt;/p&gt;&lt;/div&gt;';
+    assert.equal(htmlToText(escaped), 'About WPP production');
+  });
+  it('repairs UTF-8 mojibake', () => {
+    assert.equal(htmlToText('Qu\u00c3\u00a9 es esto, tambi\u00c3\u00a9n'), 'Qu\u00e9 es esto, tambi\u00e9n');
+  });
+  it('leaves normal accented text alone', () => {
+    assert.equal(htmlToText('Caf\u00e9 \u2013 M\u00fcnchen'), 'Caf\u00e9 \u2013 M\u00fcnchen');
+  });
+});
+
 describe('fetchLiveJobs', () => {
   it('normalises jobs, drops unsafe urls, and never leaks full descriptions', async () => {
     behaviour = { 'remoteok.com/api': json(REMOTEOK) };

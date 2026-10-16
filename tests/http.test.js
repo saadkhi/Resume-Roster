@@ -41,6 +41,8 @@ describe('pages and headers', () => {
     const csp = res.headers.get('content-security-policy');
     assert.match(csp, /script-src 'self'(;|$)/);
     assert.doesNotMatch(csp, /script-src[^;]*unsafe-inline/);
+    assert.match(csp, /worker-src 'self' blob:/, 'liquid-glass rasterises on a blob worker');
+    assert.doesNotMatch(csp, /script-src[^;]*blob:/);
     const html = await res.text();
     assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)(?![^>]*application\/json)[^>]*>/);
     assert.doesNotMatch(html, /\sonclick=|\sonload=/);

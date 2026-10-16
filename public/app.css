@@ -567,3 +567,50 @@ a.user-link:hover { color: var(--accent); }
 @media (max-width: 760px) { .user-menu { margin-left: auto; } }
 .toggle { white-space: normal; align-items: flex-start; }
 .live-toolbar .toggle { white-space: nowrap; align-items: center; }
+
+/* ═══ Glass: CSS baseline (always on) + liquidGL upgrade (.glass-on) ═══════ */
+.site-header { z-index: 60; background: color-mix(in srgb, var(--bg) 62%, transparent); -webkit-backdrop-filter: blur(20px) saturate(170%); backdrop-filter: blur(20px) saturate(170%); border-bottom: 1px solid color-mix(in srgb, var(--surface) 55%, transparent); }
+.nav { background: color-mix(in srgb, var(--surface) 55%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-color: color-mix(in srgb, var(--surface) 70%, var(--border)); }
+.live-toolbar { background: color-mix(in srgb, var(--surface) 58%, transparent); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); border: 1px solid color-mix(in srgb, var(--surface) 70%, var(--border)); }
+.hero-points li, .quick-chips .chip-btn:not(.active), .source-chip { background: color-mix(in srgb, var(--surface) 62%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border: 1px solid color-mix(in srgb, var(--surface) 70%, var(--border)); }
+.tabbar { background: rgba(14, 13, 19, 0.66); -webkit-backdrop-filter: blur(22px) saturate(180%); backdrop-filter: blur(22px) saturate(180%); border: 1px solid rgba(255, 255, 255, 0.14); }
+
+/* soft colour behind the hero so the glass has something to refract */
+.hero { position: relative; }
+.hero::before { content: ''; position: absolute; z-index: -1; right: -8%; top: -60px; width: 460px; height: 340px; border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 34%, transparent), transparent); filter: blur(24px); pointer-events: none; }
+.hero::after { content: ''; position: absolute; z-index: -1; left: 38%; top: 120px; width: 300px; height: 220px; border-radius: 50%; background: radial-gradient(closest-side, rgba(255, 120, 200, 0.22), transparent); filter: blur(28px); pointer-events: none; }
+main { position: relative; z-index: 0; }
+
+/* once liquidGL paints the pane, the element's own fill must not hide it */
+.glass-on .live-toolbar, .glass-on .tabbar { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.glass-on .tabbar > * { position: relative; z-index: 3; }
+.glass-on .tabbar a { text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+
+.link-btn { background: none; border: 0; padding: 0; font: inherit; color: var(--text-2); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.link-btn:hover { color: var(--text); }
+@media (max-width: 760px) { .live-toolbar { top: 70px; } }
+@media (prefers-reduced-transparency: reduce) {
+  .site-header, .nav, .live-toolbar, .tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .site-header, .live-toolbar { background: var(--surface); }
+  .tabbar { background: var(--ink); }
+}
+/* decorative glows must never create horizontal scroll */
+html, body { overflow-x: clip; }
+
+/* sticky glass wrapper around the job search form (simple block so the lens can wrap it) */
+.live-bar { position: sticky; top: 84px; z-index: 60; margin-top: 1rem; padding: 0.4rem; border-radius: 999px; background: color-mix(in srgb, var(--surface) 58%, transparent); -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%); border: 1px solid color-mix(in srgb, var(--surface) 70%, var(--border)); box-shadow: var(--shadow); }
+.live-bar .live-toolbar { position: static; margin: 0; background: transparent; box-shadow: none; border: 0; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0 0.4rem 0 1.1rem; }
+.glass-on .live-bar { background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; border-color: transparent; }
+.glass-on .live-bar > * { position: relative; z-index: 3; }
+@media (max-width: 760px) { .live-bar { top: 70px; border-radius: var(--radius); } .live-bar .live-toolbar { padding: 0.5rem; } }
+
+/* visually-hidden elements must stay out of layout even inside glass wrappers */
+.sr-only { position: absolute !important; }
+
+/* liquidGL sets pointer-events:none on its target; interactive children must stay clickable */
+.glass-on .site-header :is(a, button, input, select, textarea, label),
+.glass-on .live-bar :is(a, button, input, select, textarea, label),
+.glass-on .tabbar a { pointer-events: auto !important; }
+
+.glass-on .tabbar a { color: #e9e6f7; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5); }
+.glass-on .tabbar a[aria-current='page'] { color: #fff; }

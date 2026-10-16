@@ -5,6 +5,7 @@
                 <a href="/privacy">Privacy</a>
                 <a href="/terms">Terms</a>
                 <a href="/contact">Contact</a>
+                <button type="button" class="link-btn" id="btnGlass">Glass effect</button>
             </nav>
         </div>
     </footer>
@@ -12,6 +13,8 @@
     <script type="application/json" id="rr-config"><%- JSON.stringify({
         currentUser: locals.currentUser || null,
         authEnabled: !!locals.authEnabled,
-        persistenceMode: locals.persistenceMode || 'ephemeral'
+        persistenceMode: locals.persistenceMode || 'ephemeral',
+        glassUrl: asset('/vendor/liquidGL.js')
     }).replace(/</g, '\\u003c') %></script>
     <script src="<%= asset('/js/shell.js') %>" defer></script>
+    <script src="<%= asset('/js/glass.js') %>" defer></script>
