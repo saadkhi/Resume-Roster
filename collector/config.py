@@ -117,6 +117,10 @@ def load_config() -> Settings:
     queries = _csv_values(os.getenv("SEARCH_QUERIES"), DEFAULT_QUERIES)
     locations = _csv_values(os.getenv("SEARCH_LOCATIONS"), DEFAULT_LOCATIONS)
     sites = _csv_values(os.getenv("JOBSPY_SITES"), ("indeed", "zip_recruiter"))
+    # An empty variable means "use the default", so give an explicit way to switch every
+    # JobSpy board off and collect only from the public feeds.
+    if (os.getenv("JOBSPY_SITES") or "").strip().lower() in {"none", "off", "disabled"}:
+        sites = ()
     sources = _csv_values(
         os.getenv("ENABLED_SOURCES"),
         ("remote_ok", "we_work_remotely", "hacker_news"),

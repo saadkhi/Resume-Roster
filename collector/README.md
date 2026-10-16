@@ -99,7 +99,7 @@ Operational variables:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `JOBSPY_SITES` | `indeed,zip_recruiter` | Verified JobSpy identifiers; Google is rejected as unavailable. |
+| `JOBSPY_SITES` | `indeed,zip_recruiter` | Verified JobSpy identifiers; Google is rejected as unavailable. Set to `none` to disable every JobSpy board and collect only from the public feeds (useful if Indeed/ZipRecruiter block your runner). |
 | `ENABLED_SOURCES` | Remote OK, WWR, HN | Comma-separated names: `remote_ok,we_work_remotely,hacker_news`. |
 | `MAX_RESULTS_PER_QUERY` | `30` | Requested result cap for each configured JobSpy site/search. |
 | `JOB_MAX_AGE_HOURS` | `72` | Reject dated listings older than this threshold. Undated listings are retained and explicitly not freshness-verified. |

@@ -39,3 +39,13 @@ def test_multiple_proxies_are_not_rotated(settings, monkeypatch):
     monkeypatch.setenv("PROXIES_LIST", "https://proxy-one.invalid,https://proxy-two.invalid")
     with pytest.raises(ValueError, match="at most one authorized proxy"):
         load_config()
+
+
+def test_jobspy_sites_can_be_switched_off_explicitly(monkeypatch):
+    monkeypatch.setenv("JOBSPY_SITES", "none")
+    assert load_config().jobspy_sites == ()
+
+
+def test_empty_jobspy_sites_still_means_default(monkeypatch):
+    monkeypatch.setenv("JOBSPY_SITES", "")
+    assert load_config().jobspy_sites == ("indeed", "zip_recruiter")
