@@ -1,0 +1,3 @@
+# The Python collector runs on GitHub Actions, not on Vercel.
+collector/
+.github/

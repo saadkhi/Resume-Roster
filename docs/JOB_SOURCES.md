@@ -46,6 +46,10 @@ calls per minute; Jooble 150/day; Findwork 30/min; Reed 500/day). Override with
 `ADZUNA_PER_MINUTE`, `ADZUNA_PER_DAY`, `JOOBLE_PER_DAY`, `FINDWORK_PER_MINUTE`,
 `REED_PER_DAY`.
 
+## 2a. Implemented: the Python collector (Indeed, ZipRecruiter and more)
+
+The `collector/` job scraper writes Indeed, ZipRecruiter, Remote OK, We Work Remotely and Hacker News postings into the shared Postgres `jobs` table twice a day; the web app reads that table (source id `collected`, enabled automatically when `DATABASE_URL` is set, off with `COLLECTED_JOBS=off`). Each job keeps its real board name ("via Indeed"). See the README for setup.
+
 ## 2b. Implemented: free tiers that need a key you create yourself
 
 Built and **off by default**. Each includes a persistent monthly request cap

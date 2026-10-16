@@ -1,4 +1,6 @@
-# Scrabeee
+# Collector (formerly Scrabeee)
+
+> This directory is the job collector of the Resume Rater project (it used to be the separate `scrabeee` repository). Run all commands below from inside `collector/`. The scheduled workflow lives at `../.github/workflows/collector.yml`.
 
 Scrabeee collects technology job listings from configured sources, normalizes
 their fields, filters verifiably old postings, deduplicates repeated source
@@ -141,7 +143,7 @@ but PostgreSQL deployment connectivity has not been verified here.
 
 ## Twice-daily GitHub Actions
 
-`.github/workflows/scraper.yml` runs at 12:00 AM and 12:00 PM Asia/Karachi
+`../.github/workflows/collector.yml` runs at 12:00 AM and 12:00 PM Asia/Karachi
 (19:00 and 07:00 UTC) and supports manual dispatch. The Replit `Job collector`
 workflow remains a manual, one-cycle run. To preserve jobs across scheduled
 runs, configure the Actions secret `DATABASE_URL` with a persistent PostgreSQL

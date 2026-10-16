@@ -10,6 +10,7 @@
  */
 import { scoreMatch, predictCategory, ratingFor } from './nlp.js';
 import { db } from '../db/index.js';
+import { fetchCollectedJobs, collectedJobsEnabled } from './collectedJobs.js';
 
 const USER_AGENT = 'ResumeRater/1.0 (+https://github.com/saadkhi/Resume-Roster)';
 const ATTEMPT_TIMEOUT_MS = 7_000;
@@ -423,6 +424,17 @@ export const PROVIDERS = [
     }
   },
 
+  {
+    // Jobs gathered by the Python collector (collector/) from Indeed, ZipRecruiter,
+    // Remote OK, We Work Remotely and Hacker News, read from the shared Postgres database.
+    id: 'collected', name: 'Collector (Indeed, ZipRecruiter and more)', homepage: 'https://github.com/saadkhi/Resume-Roster/tree/main/collector',
+    isEnabled: collectedJobsEnabled,
+    async fetch({ q, remote }) {
+      const rows = await fetchCollectedJobs({ q, remote });
+      return rows.map(r => normalize('collected', r.sourceName, r));
+    }
+  },
+
   // Company career boards (public ATS APIs). Override the company lists with
   // GREENHOUSE_BOARDS / LEVER_BOARDS / ASHBY_BOARDS (comma-separated slugs).
   {
@@ -624,7 +636,8 @@ export function adzunaCountries() {
   return [...new Set(list.length ? list : ['us'])].slice(0, 6);
 }
 
-export const providerEnabled = (p) => !p.envKeys || p.envKeys.every(k => !!process.env[k]);
+export const providerEnabled = (p) =>
+  (!p.envKeys || p.envKeys.every(k => !!process.env[k])) && (!p.isEnabled || p.isEnabled());
 
 // ── cache ───────────────────────────────────────────────────────────────────
 const cache = new Map(); // key -> { at, ttl, value }

@@ -248,7 +248,7 @@ describe('providers', () => {
   it('covers the keyless public-apis job sources and gates keyed ones', () => {
     const keyless = PROVIDERS.filter(p => !p.envKeys).map(p => p.id).sort();
     assert.deepEqual(keyless, [
-      'aidevboard', 'aijobs', 'arbeitnow', 'ashby', 'curatorsearch', 'freehire', 'greenhouse', 'himalayas',
+      'aidevboard', 'aijobs', 'arbeitnow', 'ashby', 'collected', 'curatorsearch', 'freehire', 'greenhouse', 'himalayas',
       'hnhiring', 'jobicy', 'landingjobs', 'lever', 'remoteok', 'remotive', 'themuse', 'weworkremotely', 'workingnomads'
     ]);
     const keyed = PROVIDERS.filter(p => p.envKeys);

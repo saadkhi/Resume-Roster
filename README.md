@@ -10,6 +10,25 @@ A free ATS-style resume checker. Upload a PDF resume and a job description and g
 
 Aimed at job seekers, students and career-changers. Scores are keyword-based estimates, not a simulation of any specific employer's ATS, and should not be used for hiring decisions.
 
+## Repository layout: one project, two parts
+
+| Path | What it is | Runs on |
+|---|---|---|
+| `/` (Node, Express) | The Resume Rater web app: analyzer, accounts, live jobs, apply-by-email | Vercel |
+| `collector/` (Python) | The job collector, formerly the separate "scrabeee" repo (history preserved). Pulls jobs from Indeed, ZipRecruiter, Remote OK, We Work Remotely and Hacker News, normalises, de-duplicates and stores them | GitHub Actions, twice a day |
+
+Both share **one Postgres database** (your Neon `DATABASE_URL`):
+
+```
+GitHub Actions (collector/)  --writes-->  Neon: jobs table  <--reads--  Resume Rater (/jobs, resume matches)
+```
+
+The web app reads the collector's `jobs` table directly (`src/services/collectedJobs.js`), so no separate API server is needed. The result shows up as the **"Collector (Indeed, ZipRecruiter and more)"** source on the Jobs page and in the resume matches, each job labelled with its real board. If the collector has not run yet, that source simply returns nothing.
+
+**To turn the collector on:** in this repo go to Settings → Secrets and variables → Actions and add the secret `DATABASE_URL` (the same Neon connection string as the web app). The scheduled workflow (`.github/workflows/collector.yml`, 07:00 and 19:00 UTC) fails fast without it. Run it once by hand from the Actions tab (Run workflow) to fill the database. Set `COLLECTED_JOBS=off` on the web app to hide the source. Collector details, configuration and tests are in [collector/README.md](collector/README.md); `collector/api.py` is an optional read-only HTTP API over the same table.
+
+Scraping job boards is subject to each board's terms; the collector keeps to polite rate limits, but you are responsible for how you use it.
+
 ## How scoring works
 
 | Output | Definition |

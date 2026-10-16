@@ -8,6 +8,6 @@ This is a command-line collector, not a web server. Use Python 3.11 or newer.
 4. Run `python main.py` to fetch and persist one collection cycle.
 
 The Replit console workflow runs one cycle when started. Hourly automation is
-provided by `.github/workflows/scraper.yml`; use a persistent PostgreSQL
+provided by `../.github/workflows/collector.yml`; use a persistent PostgreSQL
 `DATABASE_URL` secret in GitHub Actions to preserve records across scheduled
 runs. An Actions runner's default SQLite file is temporary.
