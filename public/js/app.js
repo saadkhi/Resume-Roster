@@ -459,20 +459,24 @@
       if (posted) tags.push(posted);
       (job.tags || []).slice(0, 5).forEach(function (t) { tags.push(t); });
 
+      var hue = 0;
+      for (var ci = 0; ci < job.company.length; ci++) hue = (hue * 31 + job.company.charCodeAt(ci)) % 360;
+      var avatar = h('div', { class: 'avatar-co', 'aria-hidden': 'true', text: (job.company || '?').charAt(0).toUpperCase() });
+      avatar.setAttribute('style', 'background:hsl(' + hue + ' 80% 93%);color:hsl(' + hue + ' 55% 32%)');
       var kids = [
         h('div', { class: 'job-head' }, [
-          h('div', {}, [h('h3', { text: job.title }), h('div', { class: 'meta', text: meta })]),
+          h('div', { class: 'job-lead' }, [avatar, h('div', {}, [h('h3', { text: job.title }), h('div', { class: 'meta', text: meta })])]),
           badge
         ])
       ];
       if (job.summary) kids.push(h('p', { text: job.summary }));
-      kids.push(h('div', { class: 'job-tags' }, tags.map(function (t) { return h('span', { class: 'tag', text: t }); })));
+      kids.push(h('div', { class: 'job-tags' }, tags.map(function (t) { return h('span', { class: 'tag' + (job.salary && t === job.salary ? ' tag-salary' : ''), text: t }); })));
       if (job.missingKeywords && job.missingKeywords.length) {
         kids.push(h('p', { class: 'small', text: 'Missing from your resume: ' + job.missingKeywords.join(', ') }));
       }
 
       var view = h('a', {
-        class: 'btn btn-primary btn-sm', href: job.url, target: '_blank',
+        class: 'btn btn-ink btn-sm', href: job.url, target: '_blank',
         rel: 'noopener noreferrer nofollow', text: 'View & apply'
       });
       var scoreBtn = h('button', { type: 'button', class: 'btn btn-secondary btn-sm', text: 'Score my resume' });
@@ -508,6 +512,16 @@
   });
   el.liveForm.addEventListener('submit', function (e) { e.preventDefault(); loadLiveJobs(); });
   el.liveRemote.addEventListener('change', loadLiveJobs);
+  var quickChips = document.getElementById('quickChips');
+  if (quickChips) {
+    quickChips.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-q]');
+      if (!btn) return;
+      Array.prototype.forEach.call(quickChips.querySelectorAll('[data-q]'), function (b) { b.classList.toggle('active', b === btn); });
+      el.liveQuery.value = btn.getAttribute('data-q');
+      loadLiveJobs();
+    });
+  }
   el.btnRefreshLive.addEventListener('click', loadLiveJobs);
 
   /* ── extracted text copy ──────────────────────────────────────────── */

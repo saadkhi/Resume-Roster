@@ -1,0 +1,36 @@
+<%- include('partials/head', { pageTitle: 'Your account' }) %>
+<%- include('partials/header') %>
+
+<main id="main-content" class="container" data-page="account">
+    <section class="hero" style="padding-bottom:0.5rem">
+        <p class="hero-greet">Your account</p>
+        <h1>Hi, <em><%= String(currentUser.name || currentUser.email).split(' ')[0] %></em></h1>
+    </section>
+
+    <div class="account-grid">
+        <section class="card profile-card" aria-label="Profile">
+            <div class="avatar" aria-hidden="true"><%= (currentUser.name || currentUser.email || '?').charAt(0).toUpperCase() %></div>
+            <h2 style="font-size:1.3rem"><%= currentUser.name %></h2>
+            <p class="muted small"><%= currentUser.email %></p>
+            <div style="display:grid;gap:0.6rem;margin-top:1.25rem">
+                <a class="btn btn-primary" href="/">Check a resume</a>
+                <a class="btn btn-secondary" href="/apply">Draft an application email</a>
+                <button type="button" class="btn btn-secondary" id="btnSignOut2">Sign out</button>
+                <button type="button" class="btn btn-danger" id="btnDeleteAccount">Delete my account and data</button>
+            </div>
+            <p class="hint">We store only your scores and keyword gaps, never your resume text.</p>
+        </section>
+
+        <section class="card" aria-labelledby="histTitle">
+            <h2 id="histTitle" style="font-size:1.3rem">Recent evaluations</h2>
+            <p class="muted small" id="histNote">Your last 20 resume checks.</p>
+            <div id="histList" style="margin-top:1rem"></div>
+            <div class="alert alert-error" id="histError" hidden role="alert"></div>
+        </section>
+    </div>
+</main>
+
+<%- include('partials/footer') %>
+<script src="<%= asset('/js/account.js') %>" defer></script>
+</body>
+</html>

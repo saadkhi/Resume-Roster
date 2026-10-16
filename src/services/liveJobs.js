@@ -415,7 +415,7 @@ export const PROVIDERS = [
         return (data.jobs || []).map(j => normalize('greenhouse', 'Greenhouse boards', {
           id: `${slug}-${j.id}`, title: j.title, company: j.company_name || slug, location: j.location?.name,
           remote: /remote/i.test(j.location?.name || '') || null, description: '', url: j.absolute_url,
-          postedAt: j.first_published || j.updated_at, tags: [slug]
+          postedAt: j.first_published || j.updated_at, tags: []
         }));
       });
     }

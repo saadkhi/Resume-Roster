@@ -11,9 +11,9 @@
             </a>
 
             <nav class="nav" id="siteNav" aria-label="Main">
-                <a href="/">Resume checker</a>
+                <a href="/"<%- locals.navActive === 'home' ? ' aria-current="page"' : '' %>>Resume checker</a>
                 <a href="/#live-jobs">Live jobs</a>
-                <a href="/apply">Apply by email</a>
+                <a href="/apply"<%- locals.navActive === 'apply' ? ' aria-current="page"' : '' %>>Apply by email</a>
                 <a href="/privacy">Privacy</a>
                 <a href="/contact">Contact</a>
             </nav>
@@ -22,8 +22,10 @@
 
             <div class="user-menu" id="userMenu">
                 <% if (locals.currentUser) { %>
-                    <span class="avatar" aria-hidden="true"><%= (currentUser.name || currentUser.email || '?').charAt(0).toUpperCase() %></span>
-                    <span class="user-name"><%= currentUser.name || currentUser.email %></span>
+                    <a class="user-link" href="/account" aria-label="Your account">
+                        <span class="avatar" aria-hidden="true"><%= (currentUser.name || currentUser.email || '?').charAt(0).toUpperCase() %></span>
+                        <span class="user-name"><%= currentUser.name || currentUser.email %></span>
+                    </a>
                     <button type="button" class="btn btn-secondary btn-sm" id="btnSignOut">Sign out</button>
                 <% } else if (locals.authEnabled) { %>
                     <a href="/auth" class="btn btn-secondary btn-sm">Sign in</a>
@@ -35,3 +37,14 @@
             </button>
         </div>
     </header>
+
+    <nav class="tabbar" aria-label="Primary">
+        <a href="/"<%- locals.navActive === 'home' ? ' aria-current="page"' : '' %>>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</a>
+        <a href="/#live-jobs">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>Jobs</a>
+        <a href="/apply"<%- locals.navActive === 'apply' ? ' aria-current="page"' : '' %>>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Apply</a>
+        <a href="<%= locals.currentUser ? '/account' : '/auth' %>"<%- locals.navActive === 'profile' ? ' aria-current="page"' : '' %>>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 14.5-4 16 0"/></svg>Profile</a>
+    </nav>

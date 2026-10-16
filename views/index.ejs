@@ -5,12 +5,13 @@
     <div id="srAnnouncer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <section class="hero">
-        <h1>Check how well your resume matches a job</h1>
-        <p class="lead">Upload a PDF resume and a job description. You'll get a match score, the keywords you're missing, and an ATS-readiness checklist, in seconds.</p>
+        <p class="hero-greet">Hi, <%= locals.currentUser ? String(currentUser.name || currentUser.email).split(' ')[0] : 'there' %> 👋</p>
+        <h1>Land the job you <em>actually want.</em></h1>
+        <p class="lead">Check your resume against any job in seconds, spot the keywords you are missing, then browse fresh openings from 20+ job boards, ranked by how well you match.</p>
         <ul class="hero-points">
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Free, no account needed</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>PDF up to 4 MB</li>
-            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>Your resume text is not saved</li>
+            <li>Free, no account needed</li>
+            <li>PDF up to 4 MB</li>
+            <li>Your resume text is not saved</li>
         </ul>
     </section>
 
@@ -99,7 +100,7 @@
             </section>
 
             <div id="resultsWrap" hidden>
-                <section class="card" aria-labelledby="summaryTitle">
+                <section class="card card-ink" aria-labelledby="summaryTitle">
                     <div class="summary">
                         <div class="score-ring" id="scoreRing" role="img" aria-label="Match score">
                             <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
@@ -216,8 +217,19 @@
             <button type="submit" class="btn btn-primary">Search</button>
         </form>
 
+        <div class="quick-chips" id="quickChips" aria-label="Quick searches">
+            <button type="button" class="chip-btn" data-q="">All jobs</button>
+            <button type="button" class="chip-btn" data-q="software engineer">Software</button>
+            <button type="button" class="chip-btn" data-q="data">Data &amp; AI</button>
+            <button type="button" class="chip-btn" data-q="designer">Design</button>
+            <button type="button" class="chip-btn" data-q="marketing">Marketing</button>
+            <button type="button" class="chip-btn" data-q="sales">Sales</button>
+            <button type="button" class="chip-btn" data-q="product manager">Product</button>
+            <button type="button" class="chip-btn" data-q="customer support">Support</button>
+            <button type="button" class="chip-btn" data-q="devops">DevOps</button>
+        </div>
         <div class="source-chips" id="sourceChips" aria-label="Job sources"></div>
-        <p class="small muted" id="liveStatus" role="status" aria-live="polite"></p>
+        <p class="live-status" id="liveStatus" role="status" aria-live="polite"></p>
         <div class="jobs-list" id="liveList"></div>
         <button type="button" class="btn btn-secondary btn-block" id="btnMoreLive" style="margin-top:1rem" hidden>Show more</button>
     </section>

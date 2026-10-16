@@ -86,6 +86,7 @@ function pageData(req, extra = {}) {
     currentUser: req.user ? { name: req.user.name, email: req.user.email } : null,
     authEnabled: sessionsEnabled() && db.accountsAvailable(),
     persistenceMode: db.isDurable() ? 'durable' : 'ephemeral',
+    navActive: ({ '/': 'home', '/apply': 'apply', '/auth': 'profile', '/account': 'profile' })[req.path] || '',
     contactEmail: process.env.CONTACT_EMAIL || '',
     ...extra
   };
@@ -145,6 +146,7 @@ function sendAnalysisError(res, err, fallback) {
 app.get('/', (req, res) => render('index', req, res));
 app.get('/auth', (req, res) => render('auth', req, res));
 app.get('/apply', (req, res) => render('apply', req, res));
+app.get('/account', (req, res) => (req.user ? render('account', req, res) : res.redirect(302, '/auth')));
 app.get('/terms', (req, res) => render('terms', req, res));
 app.get('/privacy', (req, res) => render('privacy', req, res));
 app.get('/contact', (req, res) => render('contact', req, res, { form: { name: '', email: '', subject: 'general', message: '' }, status: null }));
