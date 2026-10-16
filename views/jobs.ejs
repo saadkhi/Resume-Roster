@@ -1,0 +1,50 @@
+<%- include('partials/head', { pageTitle: 'Live jobs', pageDescription: 'Fresh job openings from 20+ public job boards in one place. Search, filter by remote, and rank them by how well your resume matches.' }) %>
+<%- include('partials/header') %>
+
+<main id="main-content" class="container" data-page="jobs">
+    <section class="live-jobs jobs-page" id="live-jobs" aria-labelledby="liveJobsTitle">
+        <div class="live-head">
+            <div>
+                <h1 id="liveJobsTitle">Live job openings</h1>
+                <p class="muted small" id="liveJobsLead">Fresh postings from 20+ public job boards. Analyze a resume on the home page to rank them by how well you match.</p>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLive">Refresh</button>
+        </div>
+
+        <div class="live-bar">
+        <form class="live-toolbar" id="liveForm" role="search">
+            <input id="liveQuery" class="input" type="search" aria-label="Search jobs" maxlength="100" placeholder="Search title, skill or company, e.g. python, data analyst">
+            <label class="toggle"><input type="checkbox" id="liveRemote"> Remote only</label>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </form>
+        </div>
+
+        <div class="quick-chips" id="quickChips" aria-label="Quick searches">
+            <button type="button" class="chip-btn" data-q="">All jobs</button>
+            <button type="button" class="chip-btn" data-q="software engineer">Software</button>
+            <button type="button" class="chip-btn" data-q="data">Data &amp; AI</button>
+            <button type="button" class="chip-btn" data-q="designer">Design</button>
+            <button type="button" class="chip-btn" data-q="marketing">Marketing</button>
+            <button type="button" class="chip-btn" data-q="sales">Sales</button>
+            <button type="button" class="chip-btn" data-q="product manager">Product</button>
+            <button type="button" class="chip-btn" data-q="customer support">Support</button>
+            <button type="button" class="chip-btn" data-q="devops">DevOps</button>
+        </div>
+
+        <label class="toggle rank-toggle" id="rankWrap" hidden>
+            <input type="checkbox" id="rankByResume" checked>
+            <span>Rank by the resume I analyzed (<a href="/">change resume</a>)</span>
+        </label>
+
+        <div class="source-chips" id="sourceChips" aria-label="Job sources"></div>
+        <p class="live-status" id="liveStatus" role="status" aria-live="polite"></p>
+        <div class="jobs-list" id="liveList"></div>
+        <button type="button" class="btn btn-secondary btn-block" id="btnMoreLive" style="margin-top:1rem" hidden>Show more</button>
+    </section>
+</main>
+
+<%- include('partials/footer') %>
+<script src="<%= asset('/js/jobcard.js') %>" defer></script>
+<script src="<%= asset('/js/jobs.js') %>" defer></script>
+</body>
+</html>

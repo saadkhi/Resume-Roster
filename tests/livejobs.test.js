@@ -124,6 +124,24 @@ describe('fetchLiveJobs', () => {
     assert.ok(r.jobs[0].matchPercentage > r.jobs[1].matchPercentage);
   });
 
+  it('does not overstate the match for postings with almost no text', async () => {
+    behaviour = {
+      'remoteok.com/api': json([
+        { legal: 'x' },
+        { id: '1', position: 'Python Engineer', company: 'A', description: '', url: 'https://remoteok.com/1', date: '2026-10-14T00:00:00Z' },
+        { id: '2', position: 'Python Engineer', company: 'B', url: 'https://remoteok.com/2', date: '2026-10-13T00:00:00Z',
+          description: 'We need python sql docker kubernetes terraform airflow spark pandas numpy experience building data pipelines and APIs' }
+      ])
+    };
+    const r = await fetchLiveJobs({ sources: ['remoteok'], resumeText: 'Python SQL Docker Kubernetes Terraform Airflow Spark Pandas NumPy pipelines APIs engineer' });
+    const thin = r.jobs.find(j => j.company === 'A');
+    const rich = r.jobs.find(j => j.company === 'B');
+    assert.equal(thin.limitedDetails, true);
+    assert.ok(thin.matchPercentage < 100, 'title-only posting must not show 100%');
+    assert.equal(rich.limitedDetails, false);
+    assert.ok(rich.matchPercentage > thin.matchPercentage);
+  });
+
   it('de-duplicates identical postings across sources', async () => {
     const same = { title: 'Data Analyst', company: 'Acme' };
     behaviour = {

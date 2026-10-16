@@ -12,7 +12,7 @@
 
             <nav class="nav" id="siteNav" aria-label="Main">
                 <a href="/"<%- locals.navActive === 'home' ? ' aria-current="page"' : '' %>>Resume checker</a>
-                <a href="/#live-jobs">Live jobs</a>
+                <a href="/jobs"<%- locals.navActive === 'jobs' ? ' aria-current="page"' : '' %>>Live jobs</a>
                 <a href="/apply"<%- locals.navActive === 'apply' ? ' aria-current="page"' : '' %>>Apply by email</a>
                 <a href="/privacy">Privacy</a>
                 <a href="/contact">Contact</a>
@@ -41,7 +41,7 @@
     <nav class="tabbar" aria-label="Primary">
         <a href="/"<%- locals.navActive === 'home' ? ' aria-current="page"' : '' %>>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>Home</a>
-        <a href="/#live-jobs">
+        <a href="/jobs"<%- locals.navActive === 'jobs' ? ' aria-current="page"' : '' %>>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>Jobs</a>
         <a href="/apply"<%- locals.navActive === 'apply' ? ' aria-current="page"' : '' %>>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>Apply</a>

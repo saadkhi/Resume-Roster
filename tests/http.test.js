@@ -268,3 +268,29 @@ describe('apply page', () => {
     assert.match(home, /href="\/apply"/);
   });
 });
+
+describe('jobs page and resume matches', () => {
+  it('serves every live job on /jobs with the search UI and shared card script', async () => {
+    const page = await (await fetch(`${base}/jobs`)).text();
+    assert.match(page, /<h1[^>]*>Live job openings/);
+    assert.match(page, /id="liveForm"/);
+    assert.match(page, /id="rankByResume"/);
+    assert.match(page, /\/js\/jobcard\.js/);
+    assert.match(page, /\/js\/jobs\.js/);
+    assert.match(page, /<a href="\/jobs" aria-current="page">/);
+    assert.doesNotMatch(page, /<script(?![^>]*\bsrc=)(?![^>]*application\/json)[^>]*>/);
+  });
+
+  it('moves live jobs off the home page and shows matches under the assessment', async () => {
+    const home = await (await fetch(`${base}/`)).text();
+    assert.doesNotMatch(home, /id="liveForm"/);
+    assert.match(home, /id="matchesSection"/);
+    assert.match(home, /Jobs that match your resume/);
+    // the matches block sits inside the results wrapper, after the tabs card
+    const wrap = home.indexOf('id="resultsWrap"');
+    const tabs = home.indexOf('id="resultsPanel"');
+    const matches = home.indexOf('id="matchesSection"');
+    assert.ok(wrap > -1 && tabs > wrap && matches > tabs, 'matches must come after the assessment');
+    assert.match(home, /href="\/jobs"/);
+  });
+});

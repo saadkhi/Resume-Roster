@@ -8,7 +8,7 @@
  * Keyless sources are always on. Sources that need an API key are enabled by
  * setting the matching environment variables (see `envKeys`).
  */
-import { scoreMatch, predictCategory } from './nlp.js';
+import { scoreMatch, predictCategory, ratingFor } from './nlp.js';
 import { db } from '../db/index.js';
 
 const USER_AGENT = 'ResumeRater/1.0 (+https://github.com/saadkhi/Resume-Roster)';
@@ -19,6 +19,7 @@ const QUERY_TTL_MS = 5 * 60_000;
 const PER_PROVIDER_LIMIT = 30;
 const MAX_TOTAL = 150;
 const MAX_CACHE_ENTRIES = 200;
+const MIN_KEYWORDS_FOR_FULL_CONFIDENCE = 8;
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&apos;': "'", '&nbsp;': ' ' };
@@ -711,6 +712,9 @@ async function runProvider(p, params) {
   }
 }
 
+// Postings with little text rank slightly lower than equally-scored detailed ones.
+const rankScore = (j) => j.matchPercentage - (j.limitedDetails ? 10 : 0);
+
 const dedupeKey = (j) => `${j.title}|${j.company}`.toLowerCase().replace(/[^a-z0-9|]/g, '');
 
 /**
@@ -739,8 +743,20 @@ export async function fetchLiveJobs({ query = '', remote = false, sources = [], 
     if (hasResume) {
       r.jobs = r.jobs.map(j => {
         const m = scoreMatch(resumeText, `${j.title}. ${j.tags.join(' ')} ${j.description}`);
-        return { ...j, matchPercentage: m.percentage, matchRating: m.matchRating, missingKeywords: m.missingKeywords.slice(0, 5) };
-      }).sort((a, b) => b.matchPercentage - a.matchPercentage || byDate(a, b));
+        // A posting with almost no text (e.g. title only) can trivially hit 100%.
+        // Scale the score by how much evidence there is so it is not overstated.
+        const evidence = m.totalKeywordsChecked >= MIN_KEYWORDS_FOR_FULL_CONFIDENCE
+          ? 1
+          : 0.5 + 0.5 * (m.totalKeywordsChecked / MIN_KEYWORDS_FOR_FULL_CONFIDENCE);
+        const score = m.similarityScore * evidence;
+        return {
+          ...j,
+          matchPercentage: Math.round(score * 100),
+          matchRating: ratingFor(score),
+          limitedDetails: evidence < 1,
+          missingKeywords: m.missingKeywords.slice(0, 5)
+        };
+      }).sort((a, b) => rankScore(b) - rankScore(a) || byDate(a, b));
     } else {
       r.jobs.sort(byDate);
     }
@@ -765,7 +781,7 @@ export async function fetchLiveJobs({ query = '', remote = false, sources = [], 
   merged.length = Math.min(merged.length, MAX_TOTAL);
 
   const jobs = hasResume
-    ? merged.sort((a, b) => b.matchPercentage - a.matchPercentage || byDate(a, b))
+    ? merged.sort((a, b) => rankScore(b) - rankScore(a) || byDate(a, b))
     : merged;
 
   // The full description is only needed server-side for scoring.

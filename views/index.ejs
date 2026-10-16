@@ -189,55 +189,44 @@
                         </div>
                     </div>
                 </section>
+
+                <section class="card matches-card" id="matchesSection" aria-labelledby="matchesTitle">
+                    <div class="live-head">
+                        <div>
+                            <h2 id="matchesTitle">Jobs that match your resume</h2>
+                            <p class="muted small" id="matchesLead">The best-matching live openings for the resume you just analyzed.</p>
+                        </div>
+                        <a class="btn btn-secondary btn-sm" href="/jobs">See all jobs</a>
+                    </div>
+                    <div class="jobs-list single" id="matchesList"></div>
+                    <p class="small muted" id="matchesStatus" role="status" aria-live="polite" style="margin-top:0.75rem"></p>
+                    <a class="btn btn-secondary btn-block" id="matchesMore" href="/jobs" style="margin-top:0.75rem" hidden>See all jobs</a>
+                </section>
             </div>
         </div>
     </div>
 
-    <aside class="card cta-card" aria-label="Apply by email">
-        <div>
-            <h2>Found a hiring post on LinkedIn?</h2>
-            <p class="muted small">Paste it and get the role, deadline and email address pulled out, plus a short application email you can review and send.</p>
-        </div>
-        <a class="btn btn-primary" href="/apply">Draft an application email</a>
-    </aside>
-
-    <section class="live-jobs" id="live-jobs" aria-labelledby="liveJobsTitle">
-        <div class="live-head">
+    <div class="cta-row">
+        <aside class="card cta-card" aria-label="Live jobs">
             <div>
-                <h2 id="liveJobsTitle">Live job openings</h2>
-                <p class="muted small" id="liveJobsLead">Fresh postings pulled from several public job boards. Analyze a resume above to rank them by how well you match.</p>
+                <h2>Browse every live job</h2>
+                <p class="muted small">Fresh openings from 20+ job boards in one place, with search and remote filters.</p>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" id="btnRefreshLive">Refresh</button>
-        </div>
-
-        <div class="live-bar">
-        <form class="live-toolbar" id="liveForm" role="search">
-            <input id="liveQuery" class="input" type="search" aria-label="Search jobs" maxlength="100" placeholder="Search title, skill or company, e.g. python, data analyst">
-            <label class="toggle"><input type="checkbox" id="liveRemote"> Remote only</label>
-            <button type="submit" class="btn btn-primary">Search</button>
-        </form>
-        </div>
-
-        <div class="quick-chips" id="quickChips" aria-label="Quick searches">
-            <button type="button" class="chip-btn" data-q="">All jobs</button>
-            <button type="button" class="chip-btn" data-q="software engineer">Software</button>
-            <button type="button" class="chip-btn" data-q="data">Data &amp; AI</button>
-            <button type="button" class="chip-btn" data-q="designer">Design</button>
-            <button type="button" class="chip-btn" data-q="marketing">Marketing</button>
-            <button type="button" class="chip-btn" data-q="sales">Sales</button>
-            <button type="button" class="chip-btn" data-q="product manager">Product</button>
-            <button type="button" class="chip-btn" data-q="customer support">Support</button>
-            <button type="button" class="chip-btn" data-q="devops">DevOps</button>
-        </div>
-        <div class="source-chips" id="sourceChips" aria-label="Job sources"></div>
-        <p class="live-status" id="liveStatus" role="status" aria-live="polite"></p>
-        <div class="jobs-list" id="liveList"></div>
-        <button type="button" class="btn btn-secondary btn-block" id="btnMoreLive" style="margin-top:1rem" hidden>Show more</button>
-    </section>
+            <a class="btn btn-primary" href="/jobs">See all jobs</a>
+        </aside>
+        <aside class="card cta-card" aria-label="Apply by email">
+            <div>
+                <h2>Found a hiring post on LinkedIn?</h2>
+                <p class="muted small">Paste it and get the key details plus a short application email you can review and send.</p>
+            </div>
+            <a class="btn btn-secondary" href="/apply">Draft an application email</a>
+        </aside>
+    </div>
 </main>
 
 <%- include('partials/footer') %>
 <script src="<%= asset('/match-visualizer.bundle.js') %>" defer></script>
+<script src="<%= asset('/js/jobcard.js') %>" defer></script>
 <script src="<%= asset('/js/app.js') %>" defer></script>
 </body>
 </html>
