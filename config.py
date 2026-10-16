@@ -116,7 +116,7 @@ def load_config() -> Settings:
     load_dotenv()
     queries = _csv_values(os.getenv("SEARCH_QUERIES"), DEFAULT_QUERIES)
     locations = _csv_values(os.getenv("SEARCH_LOCATIONS"), DEFAULT_LOCATIONS)
-    sites = _csv_values(os.getenv("JOBSPY_SITES"), ("indeed", "linkedin"))
+    sites = _csv_values(os.getenv("JOBSPY_SITES"), ("indeed", "zip_recruiter"))
     sources = _csv_values(
         os.getenv("ENABLED_SOURCES"),
         ("remote_ok", "we_work_remotely", "hacker_news"),
@@ -177,7 +177,7 @@ def load_config() -> Settings:
         jobspy_sites=sites,
         enabled_sources=sources,
         max_results_per_query=_int_env("MAX_RESULTS_PER_QUERY", 30),
-        job_max_age_hours=_int_env("JOB_MAX_AGE_HOURS", 1),
+        job_max_age_hours=_int_env("JOB_MAX_AGE_HOURS", 72),
         request_timeout_seconds=_int_env("REQUEST_TIMEOUT_SECONDS", 20),
         max_retries=_int_env("MAX_RETRIES", 3, minimum=0),
         backoff_base_seconds=backoff_base,
@@ -194,6 +194,6 @@ def load_config() -> Settings:
         enable_json_export=os.getenv("ENABLE_JSON_EXPORT", "true").lower() in {"1", "true", "yes"},
         output_dir=Path(os.getenv("OUTPUT_DIR", "output")),
         proxy_url=proxy_url,
-        hn_max_comments=_int_env("HN_MAX_COMMENTS", 100),
+        hn_max_comments=_int_env("HN_MAX_COMMENTS", 300),
         hn_story_scan_limit=_int_env("HN_STORY_SCAN_LIMIT", 200),
     )

@@ -114,7 +114,9 @@ def test_hacker_news_uses_official_api_and_accepts_only_explicit_vacancies(setti
         "kids": [2, 3],
     }
     routes = {
-        "https://hacker-news.firebaseio.com/v0/askstories.json": FakeResponse([1]),
+        "https://hacker-news.firebaseio.com/v0/user/whoishiring.json": FakeResponse(
+            {"submitted": [1]}
+        ),
         "https://hacker-news.firebaseio.com/v0/item/1.json": FakeResponse(thread),
         "https://hacker-news.firebaseio.com/v0/item/2.json": FakeResponse(
             {
@@ -136,3 +138,15 @@ def test_hacker_news_uses_official_api_and_accepts_only_explicit_vacancies(setti
     assert result.jobs[0]["company"] == "Acme"
     assert result.jobs[0]["job_url"] == "https://news.ycombinator.com/item?id=2"
     assert "lower_confidence" in result.jobs[0]["tags"]
+
+
+def test_hacker_news_pipe_header_format():
+    from scrapers.custom_remote import _parse_hn_vacancy
+
+    job = _parse_hn_vacancy(
+        {"id": 9, "text": "Acme | Python Engineer | Remote | Full-time<p>We build things</p>"}, 1
+    )
+    assert job["company"] == "Acme"
+    assert job["title"] == "Python Engineer"
+    assert job["location"] == "Remote"
+    assert _parse_hn_vacancy({"id": 10, "text": "Hiring engineers, email us"}, 1) is None

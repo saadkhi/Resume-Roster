@@ -10,7 +10,7 @@ def test_defaults_are_loaded(settings):
     assert settings.locations == ("Pakistan",)
     assert settings.max_results_per_query == 30
     assert settings.linkedin_min_interval_seconds == 10
-    assert settings.job_max_age_hours == 1
+    assert settings.job_max_age_hours == 72
     assert "Pakistan" in DEFAULT_LOCATIONS
     assert "Python Engineer" in DEFAULT_QUERIES
 

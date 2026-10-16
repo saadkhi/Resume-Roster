@@ -187,13 +187,21 @@ def _parse_hn_vacancy(comment: dict[str, Any], thread_id: int) -> dict[str, Any]
     text = soup.get_text("\n", strip=True)
     company_match = re.search(r"(?im)^\s*(?:company|employer)\s*:\s*(.+?)\s*$", text)
     role_match = re.search(r"(?im)^\s*(?:role|position|job title)\s*:\s*(.+?)\s*$", text)
-    if not company_match or not role_match:
-        return None
-    company = company_match.group(1).strip()
-    title = role_match.group(1).strip()
+    location_match = re.search(r"(?im)^\s*location\s*:\s*(.+?)\s*$", text)
+    location = location_match.group(1).strip() if location_match else None
+    if company_match and role_match:
+        company = company_match.group(1).strip()
+        title = role_match.group(1).strip()
+    else:
+        # Common HN convention: first line "Company | Role | Location | ...".
+        header = text.splitlines()[0] if text else ""
+        parts = [part.strip() for part in header.split("|")]
+        if len(header) > 250 or len(parts) < 3 or not parts[0] or not parts[1]:
+            return None
+        company, title = parts[0], parts[1]
+        location = location or (parts[2] or None)
     if not company or not title:
         return None
-    location_match = re.search(r"(?im)^\s*location\s*:\s*(.+?)\s*$", text)
     comment_id = comment.get("id")
     if not isinstance(comment_id, int):
         return None
@@ -208,7 +216,7 @@ def _parse_hn_vacancy(comment: dict[str, Any], thread_id: int) -> dict[str, Any]
         "job_id": str(comment_id),
         "title": title,
         "company": company,
-        "location": location_match.group(1).strip() if location_match else None,
+        "location": location,
         "job_url": f"https://news.ycombinator.com/item?id={comment_id}",
         "description": text,
         "date_posted": date_posted,
@@ -237,51 +245,38 @@ class HackerNewsHiringSource:
         del query, location
         result = SourceResult(source_name=self.name)
         try:
-            story_ids = self._json("askstories.json")
+            user = self._json("user/whoishiring.json")
+            story_ids = user.get("submitted") if isinstance(user, dict) else None
             if not isinstance(story_ids, list):
-                raise ValueError("Hacker News askstories response must be an array")
+                raise ValueError("Hacker News whoishiring submissions must be an array")
             now = datetime.now(timezone.utc)
             thread: dict[str, Any] | None = None
-            scan_ids = story_ids[: self.settings.hn_story_scan_limit]
-            # Check small batches so discovery is faster without fanning out an
-            # unbounded number of requests to the public API.
-            for start in range(0, len(scan_ids), 4):
-                batch = scan_ids[start : start + 4]
-                with ThreadPoolExecutor(max_workers=4) as executor:
-                    futures = {
-                        executor.submit(self._json, f"item/{story_id}.json"): story_id
-                        for story_id in batch
-                    }
-                    for future in as_completed(futures):
-                        try:
-                            story = future.result()
-                        except Exception as exc:
-                            logger.warning(
-                                "Hacker News story lookup failed",
-                                extra={"source": self.name},
-                                exc_info=True,
-                            )
-                            result.errors.append(f"story request: {type(exc).__name__}: {exc}")
-                            continue
-                        if not isinstance(story, dict):
-                            continue
-                        created = story.get("time")
-                        if not isinstance(created, (int, float)):
-                            continue
-                        posted = datetime.fromtimestamp(created, timezone.utc)
-                        title = _plain_text(story.get("title")) or ""
-                        if (posted.year, posted.month) == (
-                            now.year,
-                            now.month,
-                        ) and "who is hiring" in title.casefold():
-                            thread = story
-                            break
-                if thread:
-                    break
+            # The official whoishiring account posts the monthly threads; the
+            # newest "Who is hiring?" story within ~45 days is the current one.
+            for story_id in story_ids[: self.settings.hn_story_scan_limit]:
+                try:
+                    story = self._json(f"item/{story_id}.json")
+                except Exception as exc:
+                    logger.warning(
+                        "Hacker News story lookup failed",
+                        extra={"source": self.name},
+                        exc_info=True,
+                    )
+                    result.errors.append(f"story request: {type(exc).__name__}: {exc}")
+                    continue
+                if not isinstance(story, dict):
+                    continue
+                created = story.get("time")
+                title = _plain_text(story.get("title")) or ""
+                if not isinstance(created, (int, float)) or "who is hiring" not in title.casefold():
+                    continue
+                if (now - datetime.fromtimestamp(created, timezone.utc)).days <= 45:
+                    thread = story
+                break
             if thread is None:
                 result.errors.append(
-                    "Current-month 'Who is hiring?' thread was not found in the "
-                    f"latest {self.settings.hn_story_scan_limit} Ask HN stories."
+                    "Recent 'Who is hiring?' thread was not found among the latest "
+                    f"{self.settings.hn_story_scan_limit} whoishiring submissions."
                 )
                 result.finish()
                 return result

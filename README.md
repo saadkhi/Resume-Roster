@@ -97,16 +97,16 @@ Operational variables:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `JOBSPY_SITES` | `indeed,linkedin` | Verified JobSpy identifiers; Google is rejected as unavailable. |
+| `JOBSPY_SITES` | `indeed,zip_recruiter` | Verified JobSpy identifiers; Google is rejected as unavailable. |
 | `ENABLED_SOURCES` | Remote OK, WWR, HN | Comma-separated names: `remote_ok,we_work_remotely,hacker_news`. |
 | `MAX_RESULTS_PER_QUERY` | `30` | Requested result cap for each configured JobSpy site/search. |
-| `JOB_MAX_AGE_HOURS` | `1` | Reject dated listings older than this threshold. Undated listings are retained and explicitly not freshness-verified. |
+| `JOB_MAX_AGE_HOURS` | `72` | Reject dated listings older than this threshold. Undated listings are retained and explicitly not freshness-verified. |
 | `REQUEST_TIMEOUT_SECONDS` | `20` | Timeout for custom-feed HTTP requests. |
 | `MAX_RETRIES` | `3` | Bounded retries for transport, 429, and selected 5xx errors; 403 is not retried. |
 | `BACKOFF_BASE_SECONDS` / `BACKOFF_MAX_SECONDS` | `1` / `30` | Exponential retry delay limits. `Retry-After` is honored up to the configured maximum. |
 | `MAX_CONCURRENT_REQUESTS` | `4` | Bounded outer fetch workers. JobSpy can create its own internal workers. |
 | `MAX_EXECUTION_SECONDS` | `1800` | Collection deadline; network/library calls still have their own timeout behavior. |
-| `HN_MAX_COMMENTS` | `100` | Maximum hiring-thread comments checked per run. |
+| `HN_MAX_COMMENTS` | `300` | Maximum hiring-thread comments checked per run. |
 | `HN_STORY_SCAN_LIMIT` | `200` | Maximum recent Ask HN stories checked for the current hiring thread. |
 | `DATABASE_URL` | `sqlite:///jobs.db` | SQLAlchemy URL; use a persistent PostgreSQL service for scheduled runs. |
 | `OUTPUT_DIR` | `output` | Directory for exports and logs. |
@@ -177,7 +177,7 @@ Missing source dates and eligibility are not guessed.
   unsupported location mappings are skipped.
 - Hacker News is a community source. To avoid inventing fields, its adapter
   only accepts posts with explicit `Company:` and `Role:` (or `Position:`)
-  labels, and links to the exact HN comment. It is not a conventional job board.
+  labels or a `Company | Role | Location` header line, and links to the exact HN comment. It is not a conventional job board.
 - The public RSS/feed integrations do not establish whether a role accepts
   applicants in Pakistan. Verify location and work authorization on the original
   listing.

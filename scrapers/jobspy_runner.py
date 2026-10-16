@@ -151,9 +151,7 @@ class JobSpySource:
             result.finished_at = datetime.now(timezone.utc)
         return result
 
-    def _scrape_linkedin(
-        self, scrape_jobs: Any, kwargs: dict[str, Any]
-    ) -> tuple[Any, bool]:
+    def _scrape_linkedin(self, scrape_jobs: Any, kwargs: dict[str, Any]) -> tuple[Any, bool]:
         with self._linkedin_lock:
             if self._linkedin_rate_limited.is_set():
                 return None, True

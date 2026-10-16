@@ -21,9 +21,9 @@ jobs:
       DATABASE_URL: ${{ secrets.DATABASE_URL || 'sqlite:///jobs.db' }}
       SEARCH_QUERIES: ${{ vars.SEARCH_QUERIES }}
       SEARCH_LOCATIONS: ${{ vars.SEARCH_LOCATIONS }}
-      JOBSPY_SITES: ${{ vars.JOBSPY_SITES || 'indeed,linkedin' }}
+      JOBSPY_SITES: ${{ vars.JOBSPY_SITES || 'indeed,zip_recruiter' }}
       ENABLED_SOURCES: ${{ vars.ENABLED_SOURCES || 'remote_ok,we_work_remotely,hacker_news' }}
-      JOB_MAX_AGE_HOURS: "1"
+      JOB_MAX_AGE_HOURS: "72"
       OUTPUT_DIR: output
       LOG_LEVEL: INFO
     steps:
